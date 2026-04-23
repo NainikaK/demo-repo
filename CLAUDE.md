@@ -44,7 +44,7 @@
                             ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                     ORCHESTRATOR AGENT                              │
-│   • Polls ADO via MCP for new work items with status = "New"        │
+│   • Polls ADO via MCP for new work items with status = "To Do"      │
 │   • Triggers the Clarification Step                                 │
 │   • On pass: decomposes into User Stories, updates ADO board        │
 │   • On fail: writes clarification comment back to ADO item          │
@@ -118,7 +118,7 @@
 **Role:** Central controller and state machine for the entire pipeline.
 
 **Responsibilities:**
-- Poll Azure DevOps via MCP for work items in `New` state
+- Poll Azure DevOps via MCP for work items in `To Do` state
 - Invoke the Clarification Step on each new work item
 - If clarification score < 50: post clarifying questions to ADO, set item state to `Needs Info`, halt pipeline for that item
 - If clarification score >= 50: invoke the ADO Story Writer to break the requirement into User Stories and update the ADO board
@@ -417,7 +417,7 @@ ADO_TRIGGER_TAG=ai-pipeline              # work items must have this tag to be p
 
 The Orchestrator polls ADO every `ADO_WORK_ITEM_POLL_INTERVAL_SECONDS` for work items that:
 1. Are of type `Feature` or `User Story`
-2. Have state `New`
+2. Have state `To Do`
 3. Are tagged with `ai-pipeline`
 
 This tag-based trigger ensures only explicitly opted-in work items enter the automated pipeline.

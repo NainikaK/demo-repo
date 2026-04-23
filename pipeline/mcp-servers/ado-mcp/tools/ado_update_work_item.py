@@ -28,7 +28,7 @@ def ado_update_work_item(item_id: int, fields: dict[str, Any]) -> dict[str, Any]
         item_id: The numeric ADO work item ID to update.
         fields: Mapping of ADO field reference names to their new values.
                 Common fields:
-                  "System.State"        — e.g. "Active", "Needs Info", "Done"
+                  "System.State"        — e.g. "To Do", "Doing", "Done"
                   "System.Title"        — work item title string
                   "System.Description"  — HTML description body
                   "Microsoft.VSTS.Scheduling.StoryPoints" — numeric story points

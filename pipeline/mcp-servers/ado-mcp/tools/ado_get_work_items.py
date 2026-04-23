@@ -29,7 +29,7 @@ def ado_get_work_items(
     unconstrained. Multiple parameters are combined with AND.
 
     Args:
-        state: Filter by work item state (e.g. "New", "Active", "Needs Info").
+        state: Filter by work item state (e.g. "To Do", "Doing", "Needs Info").
         item_type: Filter by work item type (e.g. "User Story", "Feature", "Task").
         tag: Filter by tag value using a CONTAINS match (e.g. "ai-pipeline").
 
