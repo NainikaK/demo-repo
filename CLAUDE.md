@@ -134,6 +134,10 @@
 - Sequentially trigger each downstream agent in order: Spec → Frontend → Backend → Test → Audit → Supervisor
 - Maintain a pipeline run record (JSON) tracking state, agent outputs, and timestamps
 - Handle agent failures: log, mark pipeline as failed, notify via ADO comment
+- **Checkpoint Management:** After each agent completes successfully, save a checkpoint to the run record marking that phase as completed with a timestamp. On restart or crash recovery, read the last saved checkpoint and resume from that phase instead of starting over
+- **Intelligent Retry with Diagnosis:** On agent failure, before retrying, run a diagnosis step — a focused Claude API call that analyses the error message, the agent's input, and the agent's output to identify what went wrong and how to fix it. Pass the diagnosis as additional context to the retry attempt so the second attempt is informed, not identical to the first
+- **Checkpoint Rollback:** If a retry attempt introduces new errors different from the original failure, revert the git feature branch to the state it was in at the last successful checkpoint, then retry from that clean state
+- **Human Escalation:** After 3 failed attempts at any single phase, stop retrying. Post a full diagnostic report to the ADO work item covering: which phase failed, what was attempted each time, what errors occurred, and what the diagnosis suggested. Set work item state to `Needs Attention`. Halt the pipeline
 
 **Agent Timeout:** If any agent does not complete within 10 minutes, the Orchestrator kills the agent process, logs a timeout failure, marks the pipeline as `PIPELINE_FAILED`, and posts a timeout comment to the ADO work item.
 
@@ -214,6 +218,24 @@ Status updates are printed to the terminal in structured format and written to t
 - Maximum one area of concern per story (no combined frontend+backend stories unless tightly coupled)
 - Each story must have at least one acceptance criterion
 - Stories must be independently deliverable where possible
+
+**Gherkin Scenarios:** For every user story created, generate a minimum of four Gherkin scenarios and attach them to the ADO user story description as structured acceptance criteria. The four required scenario types are:
+
+- **Happy path:** the normal successful flow when everything works as expected
+- **Failure path:** what happens when input is invalid, a service is unavailable, or an operation fails
+- **Edge case:** unusual but valid input or state that the system must handle correctly
+- **Boundary condition:** behavior at the exact limit of valid input (maximum length, zero values, empty collections)
+
+Each scenario must follow strict Gherkin syntax:
+```
+Scenario: <descriptive title>
+  Given <initial state or precondition>
+  When <action taken by user or system>
+  Then <expected observable outcome>
+  And <additional outcome if needed>
+```
+
+Scenarios are attached to the ADO user story in the Description field below the acceptance criteria. They are also passed as structured data in the Story Writer output contract for use by downstream agents.
 
 **Story Point Estimation:** Estimate the complexity of each User Story using the Fibonacci scale (1, 2, 3, 5, 8). Attach the estimate to the story as the Story Points field in ADO. Base estimates on: scope of change, number of affected files, and whether new patterns or dependencies are being introduced.
 
@@ -371,6 +393,8 @@ Status updates are printed to the terminal in structured format and written to t
 
 **Integration Test Rule:** An integration test is defined as: the frontend calls the actual backend API endpoint (not a mock) and receives the correct response shape and HTTP status code. Write at least one integration test per acceptance criterion in the structured spec.
 
+**Gherkin-to-Test Mapping Rule:** Use the Gherkin scenarios from the user stories as the primary test specification. Each Gherkin scenario maps to exactly one test. The test name must reference the scenario title using the pattern: `Scenario_<ScenarioTitle>_<ExpectedOutcome>`. If a Gherkin scenario exists with no corresponding test, it is treated as a missing test and reduces the test coverage score.
+
 **Constraints:**
 - Only modify files under `demo-app/frontend/src/__tests__/` and `demo-app/backend/tests/`
 - Tests must be deterministic — no time-dependent, order-dependent, or network-dependent tests without explicit mocking
@@ -402,6 +426,7 @@ Status updates are printed to the terminal in structured format and written to t
 - **Dead Code:** Flag unused imports, unused functions, and unreachable code blocks
 - **Bundle Size Awareness:** Flag any frontend import that pulls in an entire library when only one function is needed (e.g., `import _ from 'lodash'` instead of `import debounce from 'lodash/debounce'`)
 - **API Versioning:** Flag any new backend endpoint that is not under a versioned route prefix (minimum `/api/v1/`)
+- **Gherkin Coverage:** Verify that every Gherkin scenario defined in the user stories has a corresponding test. Flag any untested Gherkin scenario as a spec adherence violation with severity MEDIUM.
 
 **Inputs:** Full diff of the feature branch vs. `main`, test results JSON, structured spec
 **Outputs:** Audit report JSON (see rubric in Section 9)
@@ -561,7 +586,7 @@ sdlc-ai-pipeline/
 │   │   ├── audit_report.py            # Pydantic model: AuditReport
 │   │   ├── test_results.py            # Pydantic model: TestResults
 │   │   ├── change_summary.py          # Pydantic model: ChangeSummary
-│   │   └── pipeline_run.py            # Pydantic model: PipelineRun
+│   │   └── pipeline_run.py            # Pydantic model: PipelineRun (includes checkpoint and diagnosis fields)
 │   │
 │   ├── prompts/                       # System prompt templates for each agent
 │   │   ├── orchestrator.md
@@ -577,7 +602,8 @@ sdlc-ai-pipeline/
 │   └── utils/
 │       ├── github_client.py           # GitHub PR creation + merge helpers
 │       ├── git_utils.py               # Branch creation, commit, push helpers
-│       └── logger.py                  # Structured logging
+│       ├── logger.py                  # Structured logging
+│       └── diagnosis.py               # Diagnosis step — lightweight Claude call to analyse agent failures
 │
 ├── demo-app/                          # The real React + .NET app agents work on
 │   ├── frontend/                      # React 18 + TypeScript + Vite
@@ -688,6 +714,7 @@ All agents producing code must follow these standards. The Audit Agent scores ag
 - Tests must clean up after themselves — no shared mutable state between tests
 - Coverage of happy path AND at least one failure/edge case per feature
 - Test files must be co-located in their designated test directories (see folder structure)
+- Every Gherkin scenario defined in the user stories must map to exactly one named test. Untested scenarios are treated as coverage gaps regardless of line coverage percentage.
 
 ---
 
@@ -815,6 +842,25 @@ Agents use the Claude API with:
 1. If an agent raises an exception: the Orchestrator catches it, logs the error, sets pipeline state to `PIPELINE_FAILED`, and posts a comment to the ADO work item
 2. If an agent returns a `FAIL` verdict (e.g., Clarification fails): the Orchestrator follows the defined FAIL path (post questions to ADO, halt)
 3. No agent silently swallows errors — all failures propagate up to the Orchestrator
+
+### Recovery Model
+
+The pipeline uses a checkpoint-based recovery model. Every successfully completed agent phase is checkpointed before the next phase begins. If the pipeline crashes or an agent fails, execution resumes from the last saved checkpoint rather than restarting from scratch.
+
+**Retry sequence for any failed agent phase:**
+
+1. **Attempt 1:** Normal execution
+2. On failure: run the diagnosis step (Claude analyses error + agent input/output, returns structured diagnosis)
+3. **Attempt 2:** Retry with diagnosis context passed as additional input to the agent
+4. On failure: check if new errors were introduced
+   - If yes: revert git branch to last checkpoint state, then retry
+   - If no: retry same phase with updated diagnosis
+5. **Attempt 3:** Final retry
+6. If still failing: post full diagnostic report to ADO, set work item to `Needs Attention`, halt pipeline
+
+**Diagnosis Step:** A lightweight Claude API call (not a full agent) using the same `claude-sonnet-4-6` model. Input: error message, agent name, agent input summary, agent output summary. Output: `{ root_cause: str, suggested_fix: str, retry_context: str }`. Takes 10–20 seconds. Never retried itself — if diagnosis fails, proceed with blind retry.
+
+**Checkpoint Rollback:** Uses `git revert` on the feature branch to undo partial code changes from a failed agent. Only applies to code-writing agents (Frontend, Backend). Non-code agents (Clarification, Story Writer, Spec, Test, Audit, Supervisor) roll back by simply re-running from their last checkpoint without any git changes.
 
 ---
 
