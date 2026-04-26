@@ -58,6 +58,26 @@ class AgentRunRecord(BaseModel):
         default=0,
         description="Number of prior failed attempts before this record (0 = first attempt, max 2).",
     )
+    attempt_number: int = Field(
+        default=1,
+        description="Which attempt this record represents — 1 for first try, 2 or 3 for retries.",
+    )
+    checkpoint_saved: bool = Field(
+        default=False,
+        description="Whether a checkpoint was saved after this agent completed successfully.",
+    )
+    checkpoint_timestamp: Optional[datetime] = Field(
+        default=None,
+        description="UTC timestamp when the checkpoint was saved.",
+    )
+    diagnosis: Optional[str] = Field(
+        default=None,
+        description="Root cause analysis produced by the diagnosis step on failure.",
+    )
+    retry_context: Optional[str] = Field(
+        default=None,
+        description="Additional context passed to the retry attempt based on diagnosis.",
+    )
 
 
 class PipelineRun(BaseModel):
@@ -117,6 +137,22 @@ class PipelineRun(BaseModel):
     error_message: Optional[str] = Field(
         default=None,
         description="Top-level error detail when the pipeline reaches PIPELINE_FAILED state.",
+    )
+    pipeline_retry_count: int = Field(
+        default=0,
+        description="Number of times the full pipeline has been retried from a checkpoint.",
+    )
+    last_checkpoint_phase: Optional[str] = Field(
+        default=None,
+        description="Name of the last successfully checkpointed agent phase — used for crash recovery.",
+    )
+    needs_attention: bool = Field(
+        default=False,
+        description="Set to True when human escalation is triggered after 3 failed attempts at any phase.",
+    )
+    escalation_report: Optional[str] = Field(
+        default=None,
+        description="Full diagnostic report posted to ADO when needs_attention is True.",
     )
 
 
