@@ -58,8 +58,13 @@ def create_feature_branch(work_item_id: str, slug: str) -> str:
     repo_root = get_repo_root()
     run_git(["checkout", _MAIN_BRANCH], cwd=repo_root)
     run_git(["pull", _ORIGIN, _MAIN_BRANCH], cwd=repo_root)
-    run_git(["checkout", "-b", branch_name], cwd=repo_root)
-    print(f"{_LOG_PREFIX} created branch {branch_name!r}")
+    existing = run_git(["branch", "--list", branch_name], cwd=repo_root).strip()
+    if existing:
+        run_git(["checkout", branch_name], cwd=repo_root)
+        print(f"{_LOG_PREFIX} resumed existing branch {branch_name!r}")
+    else:
+        run_git(["checkout", "-b", branch_name], cwd=repo_root)
+        print(f"{_LOG_PREFIX} created branch {branch_name!r}")
     return branch_name
 
 

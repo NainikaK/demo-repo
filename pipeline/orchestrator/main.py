@@ -38,6 +38,7 @@ from state_machine import StateMachine  # noqa: E402
 import clarification_agent  # noqa: E402
 import story_writer_agent  # noqa: E402
 import spec_agent  # noqa: E402
+import frontend_agent  # noqa: E402
 
 POLL_INTERVAL_SECONDS: int = int(
     os.environ.get("ADO_WORK_ITEM_POLL_INTERVAL_SECONDS", "60")
@@ -352,7 +353,7 @@ class Orchestrator:
         self._post_ado_comment(work_item_id, report)
         try:
             self.ado_client.update_work_item(
-                int(work_item_id), {"System.State": "Needs Attention"}
+                int(work_item_id), {"System.State": "Resolved"}
             )
         except Exception as exc:
             print(f"{LOG_PREFIX} warning: could not set ADO state to Needs Attention — {exc}")
@@ -495,9 +496,36 @@ class Orchestrator:
         return True
 
     def _run_frontend_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
-        """Frontend Agent stub."""
-        print(f"{LOG_PREFIX} phase=frontend_agent status=starting")
-        print(f"{LOG_PREFIX} phase=frontend_agent status=complete (placeholder)")
+        """Invoke the Frontend Agent to write and commit React/TypeScript changes."""
+        work_item_id = str(work_item.get("id", "unknown"))
+        print(f"{LOG_PREFIX} phase=frontend_agent status=starting work_item={work_item_id}")
+
+        if run.lld_document is None:
+            raise RuntimeError(
+                "Frontend Agent: lld_document is None — spec phase did not complete successfully"
+            )
+        if run.clarification_output is None or run.clarification_output.spec is None:
+            raise RuntimeError(
+                "Frontend Agent: clarification_output.spec is None — "
+                "clarification phase did not complete successfully"
+            )
+
+        summary = frontend_agent.run(
+            run.lld_document,
+            run.clarification_output.spec,
+            run.story_ids,
+            work_item,
+            self.anthropic_client,
+        )
+        run.frontend_summary = summary
+
+        print(
+            f"{LOG_PREFIX} phase=frontend_agent "
+            f"files_created={len(summary.files_created)} "
+            f"files_modified={len(summary.files_modified)} "
+            f"branch={summary.branch_name!r} "
+            f"self_review_clean={summary.self_review.clean}"
+        )
         return True
 
     def _run_backend_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
