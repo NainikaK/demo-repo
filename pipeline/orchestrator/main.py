@@ -39,6 +39,7 @@ import clarification_agent  # noqa: E402
 import story_writer_agent  # noqa: E402
 import spec_agent  # noqa: E402
 import frontend_agent  # noqa: E402
+import backend_agent  # noqa: E402
 
 POLL_INTERVAL_SECONDS: int = int(
     os.environ.get("ADO_WORK_ITEM_POLL_INTERVAL_SECONDS", "60")
@@ -529,9 +530,41 @@ class Orchestrator:
         return True
 
     def _run_backend_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
-        """Backend Agent stub."""
-        print(f"{LOG_PREFIX} phase=backend_agent status=starting")
-        print(f"{LOG_PREFIX} phase=backend_agent status=complete (placeholder)")
+        """Invoke the Backend Agent to write and commit .NET C# changes."""
+        work_item_id = str(work_item.get("id", "unknown"))
+        print(f"{LOG_PREFIX} phase=backend_agent status=starting work_item={work_item_id}")
+
+        if run.lld_document is None:
+            raise RuntimeError(
+                "Backend Agent: lld_document is None — spec phase did not complete successfully"
+            )
+        if run.clarification_output is None or run.clarification_output.spec is None:
+            raise RuntimeError(
+                "Backend Agent: clarification_output.spec is None — "
+                "clarification phase did not complete successfully"
+            )
+        if run.frontend_summary is None:
+            raise RuntimeError(
+                "Backend Agent: frontend_summary is None — "
+                "frontend phase did not complete successfully"
+            )
+
+        summary = backend_agent.run(
+            run.lld_document,
+            run.clarification_output.spec,
+            run.frontend_summary,
+            work_item,
+            self.anthropic_client,
+        )
+        run.backend_summary = summary
+
+        print(
+            f"{LOG_PREFIX} phase=backend_agent "
+            f"files_created={len(summary.files_created)} "
+            f"files_modified={len(summary.files_modified)} "
+            f"branch={summary.branch_name!r} "
+            f"self_review_clean={summary.self_review.clean}"
+        )
         return True
 
     def _run_test_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
