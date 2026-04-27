@@ -40,6 +40,7 @@ import story_writer_agent  # noqa: E402
 import spec_agent  # noqa: E402
 import frontend_agent  # noqa: E402
 import backend_agent  # noqa: E402
+import test_agent  # noqa: E402
 
 POLL_INTERVAL_SECONDS: int = int(
     os.environ.get("ADO_WORK_ITEM_POLL_INTERVAL_SECONDS", "60")
@@ -568,10 +569,32 @@ class Orchestrator:
         return True
 
     def _run_test_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
-        """Test Agent stub."""
-        print(f"{LOG_PREFIX} phase=test_agent status=starting")
-        print(f"{LOG_PREFIX} phase=test_agent status=complete (placeholder)")
-        return True
+        """Run the Test Agent: generate and execute tests, store results."""
+        if run.frontend_summary is None:
+            raise RuntimeError("Test Agent: frontend_summary is missing from pipeline run")
+        if run.backend_summary is None:
+            raise RuntimeError("Test Agent: backend_summary is missing from pipeline run")
+        if run.lld_document is None:
+            raise RuntimeError("Test Agent: lld_document is missing from pipeline run")
+        if run.clarification_output is None or run.clarification_output.spec is None:
+            raise RuntimeError("Test Agent: structured_spec is missing from pipeline run")
+
+        result = test_agent.run(
+            run.frontend_summary,
+            run.backend_summary,
+            run.lld_document,
+            run.clarification_output.spec,
+            self.anthropic_client,
+        )
+        run.test_results = result
+
+        print(
+            f"{LOG_PREFIX} phase=test_agent "
+            f"total={result.total_tests} "
+            f"passed={result.passed} "
+            f"failed={result.failed}"
+        )
+        return result.all_passed
 
     def _run_audit_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
         """Audit Agent stub."""
