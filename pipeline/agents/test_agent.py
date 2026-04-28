@@ -68,6 +68,15 @@ def run(
     print(f"{_LOG_PREFIX} checking out feature branch {branch_name!r}")
     git_utils.checkout_branch(branch_name)
 
+    frontend_test_dir = git_utils.get_repo_root() / _FRONTEND_TEST_DIR
+    if frontend_test_dir.exists():
+        for test_file in sorted(frontend_test_dir.rglob("*")):
+            if test_file.is_file() and (
+                test_file.name.endswith(".test.tsx") or test_file.name.endswith(".test.ts")
+            ):
+                test_file.unlink()
+                print(f"{_LOG_PREFIX} deleted stale frontend test: {test_file.name}")
+
     print(f"{_LOG_PREFIX} reading existing test files")
     existing_tests = _read_existing_tests()
 
