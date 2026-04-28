@@ -43,6 +43,7 @@ import frontend_agent  # noqa: E402
 import backend_agent  # noqa: E402
 import test_agent  # noqa: E402
 import audit_agent  # noqa: E402
+import supervisor_agent  # noqa: E402
 
 POLL_INTERVAL_SECONDS: int = int(
     os.environ.get("ADO_WORK_ITEM_POLL_INTERVAL_SECONDS", "60")
@@ -670,9 +671,58 @@ class Orchestrator:
         return report.merge_recommendation != MergeRecommendation.reject
 
     def _run_supervisor(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
-        """Supervisor Agent stub."""
-        print(f"{LOG_PREFIX} phase=supervisor status=starting")
-        print(f"{LOG_PREFIX} phase=supervisor status=complete (placeholder)")
+        """Invoke the Supervisor Agent to create a GitHub PR and record the outcome."""
+        work_item_id = str(work_item.get("id", "unknown"))
+        print(f"{LOG_PREFIX} phase=supervisor status=starting work_item={work_item_id}")
+
+        if run.audit_report is None:
+            raise RuntimeError("Supervisor Agent: audit_report is missing from pipeline run")
+        if run.frontend_summary is None:
+            raise RuntimeError("Supervisor Agent: frontend_summary is missing from pipeline run")
+        if run.backend_summary is None:
+            raise RuntimeError("Supervisor Agent: backend_summary is missing from pipeline run")
+        if run.test_results is None:
+            raise RuntimeError("Supervisor Agent: test_results is missing from pipeline run")
+        if run.clarification_output is None or run.clarification_output.spec is None:
+            raise RuntimeError("Supervisor Agent: structured_spec is missing from pipeline run")
+
+        try:
+            decision = supervisor_agent.run(
+                run.audit_report,
+                run.frontend_summary,
+                run.backend_summary,
+                run.test_results,
+                run.clarification_output.spec,
+                self.anthropic_client,
+            )
+        except RuntimeError as exc:
+            print(f"{LOG_PREFIX} phase=supervisor recommendation=reject — {exc}")
+            self._post_ado_comment(
+                work_item_id,
+                f"[AI Pipeline] Supervisor: pipeline did not merge.\n{exc}",
+            )
+            return True
+
+        run.github_pr_url = decision.pr_url
+
+        self._post_ado_comment(
+            work_item_id,
+            f"[AI Pipeline] Pipeline complete. "
+            f"PR: {decision.pr_url} | Merged: {decision.merged} | Decision: {decision.decision}",
+        )
+
+        if decision.merged:
+            try:
+                self.ado_client.update_work_item(int(work_item_id), {"System.State": "Resolved"})
+            except Exception as exc:
+                print(f"{LOG_PREFIX} warning: could not set ADO state to Resolved — {exc}")
+
+        print(
+            f"{LOG_PREFIX} phase=supervisor "
+            f"pr_url={decision.pr_url!r} "
+            f"merged={decision.merged} "
+            f"decision={decision.decision!r}"
+        )
         return True
 
 
