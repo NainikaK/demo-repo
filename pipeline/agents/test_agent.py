@@ -91,7 +91,7 @@ def run(
     frontend_cases = _run_frontend_tests()
 
     print(f"{_LOG_PREFIX} running backend test suite")
-    backend_cases = _run_backend_tests()
+    backend_cases = _run_backend_tests(backend_summary)
 
     results = _aggregate_results(work_item_id, frontend_cases, backend_cases, written_files)
     print(
@@ -255,11 +255,15 @@ def _run_frontend_tests() -> list[TestCase]:
         )]
 
 
-def _run_backend_tests() -> list[TestCase]:
+def _run_backend_tests(backend_summary: ChangeSummary) -> list[TestCase]:
     """Run the dotnet test suite and return parsed test cases.
 
-    Returns a single error TestCase on runner failure rather than raising.
+    Returns an empty list when there are no backend changes. Returns a single
+    error TestCase on runner failure rather than raising.
     """
+    if not backend_summary.files_created and not backend_summary.files_modified:
+        print(f"{_LOG_PREFIX} no backend changes — skipping backend test suite")
+        return []
     backend_dir = git_utils.get_repo_root() / "demo-app" / "backend"
     results_file = backend_dir / "TestResults" / "test-results.json"
     try:
