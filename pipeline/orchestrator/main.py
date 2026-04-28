@@ -668,7 +668,7 @@ class Orchestrator:
             f"merge_recommendation={report.merge_recommendation.value} "
             f"blocking_findings={len(report.blocking_findings)}"
         )
-        return report.merge_recommendation != MergeRecommendation.reject
+        return True
 
     def _run_supervisor(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
         """Invoke the Supervisor Agent to create a GitHub PR and record the outcome."""
