@@ -182,6 +182,9 @@ def _call_claude_json(
 ) -> dict[str, Any]:
     """Run a Claude call and return the response parsed as a JSON object.
 
+    Uses an assistant prefill of ``{`` so the model is forced to continue
+    as a JSON object and cannot open with prose.
+
     Raises:
         RuntimeError: On API failure or if the response is not a JSON object.
     """
@@ -190,24 +193,18 @@ def _call_claude_json(
             model=_MODEL,
             max_tokens=max_tokens,
             system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
+            messages=[
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": "{"},
+            ],
         )
     except Exception as exc:
         raise RuntimeError(
             f"Frontend Agent: Claude API call failed ({context}) — {exc}"
         ) from exc
 
-    raw_text = _strip_fences(response.content[0].text)
-    try:
-        parsed = json.loads(raw_text)
-        if not isinstance(parsed, dict):
-            raise ValueError(f"expected a JSON object, got {type(parsed).__name__}")
-        return parsed
-    except (json.JSONDecodeError, ValueError) as exc:
-        raise RuntimeError(
-            f"Frontend Agent: {context} response was not a valid JSON object. "
-            f"Raw: {raw_text[:300]}"
-        ) from exc
+    raw_text = "{" + response.content[0].text
+    return _parse_json_object(raw_text, context)
 
 
 def _call_claude_for_code(
@@ -215,30 +212,29 @@ def _call_claude_for_code(
     user_message: str,
     anthropic_client: anthropic.Anthropic,
 ) -> dict[str, str]:
-    """Invoke Claude for code generation and return a {file_path: content} map."""
+    """Invoke Claude for code generation and return a {file_path: content} map.
+
+    Uses an assistant prefill of ``{`` so the model is forced to continue
+    as a JSON object and cannot open with prose.
+    """
     try:
         response = anthropic_client.messages.create(
             model=_MODEL,
             max_tokens=_MAX_TOKENS,
             system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
+            messages=[
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": "{"},
+            ],
         )
     except Exception as exc:
         raise RuntimeError(
             f"Frontend Agent: Claude API call failed (code generation) — {exc}"
         ) from exc
 
-    raw_text = _strip_fences(response.content[0].text)
-    try:
-        parsed = json.loads(raw_text)
-        if not isinstance(parsed, dict):
-            raise ValueError(f"expected a JSON object, got {type(parsed).__name__}")
-        return {str(k): str(v) for k, v in parsed.items()}
-    except (json.JSONDecodeError, ValueError) as exc:
-        raise RuntimeError(
-            f"Frontend Agent: code generation response was not a valid JSON object. "
-            f"Raw: {raw_text[:300]}"
-        ) from exc
+    raw_text = "{" + response.content[0].text
+    parsed = _parse_json_object(raw_text, "code generation")
+    return {str(k): str(v) for k, v in parsed.items()}
 
 
 def _validate_and_write(
@@ -338,6 +334,35 @@ def _get_visual_description(
     except Exception as exc:
         print(f"{_LOG_PREFIX} warning: could not get visual description — {exc}")
         return f"Frontend changes implemented for: {title}"
+
+
+def _parse_json_object(raw_text: str, context: str) -> dict[str, Any]:
+    """Parse *raw_text* as a JSON object, tolerating leading/trailing prose.
+
+    Strategy:
+    1. Strip any markdown fences.
+    2. Try ``JSONDecoder.raw_decode`` from the start — this correctly stops at
+       the closing ``}`` and ignores anything Claude appended afterwards.
+    3. If that fails, scan forward to the first ``{`` and try again from there.
+
+    Raises:
+        RuntimeError: If no valid JSON object can be extracted.
+    """
+    text = _strip_fences(raw_text)
+    decoder = json.JSONDecoder()
+    for start in (0, text.find("{")):
+        if start == -1:
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(text[start:].lstrip())
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+    raise RuntimeError(
+        f"Frontend Agent: {context} response was not a valid JSON object. "
+        f"Raw: {raw_text[:300]}"
+    )
 
 
 def _strip_fences(text: str) -> str:
