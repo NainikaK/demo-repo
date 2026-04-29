@@ -51,6 +51,12 @@ _VALID_TEST_ROOTS: tuple[str, ...] = (_FRONTEND_TEST_DIR, _BACKEND_TEST_ROOT)
 _TEST_FILE_EXTENSIONS: frozenset[str] = frozenset({".ts", ".tsx", ".cs"})
 _PROMPT_PATH = _PIPELINE_DIR / "prompts" / "test.md"
 
+_JSON_RECOVERY_SYSTEM = """\
+You are a JSON extractor. The input contains a JSON object somewhere inside it. \
+Extract the JSON object and return it verbatim. \
+Respond with ONLY the JSON object — no preamble, no explanation, no markdown fences.\
+"""
+
 
 def run(
     frontend_summary: ChangeSummary,
@@ -160,7 +166,11 @@ def _map_frontend_failures_to_files(
     test_dir: Path,
     repo_root: Path,
 ) -> dict[str, list[TestCase]]:
-    """Map failing frontend cases to test files via substring search, with describe-name fallback."""
+    """Map failing frontend cases to test files via substring search, with describe-name fallback.
+
+    Handles vitest's ``fullName`` format: " DescribeName TestName" (space-separated,
+    optional leading space) — NOT the Jest " > " format.
+    """
     test_files: dict[str, str] = {}
     for f in sorted(test_dir.rglob("*")):
         if f.is_file() and f.suffix in {".ts", ".tsx"}:
@@ -172,15 +182,24 @@ def _map_frontend_failures_to_files(
 
     file_to_cases: dict[str, list[TestCase]] = {}
     for case in failed:
-        it_name = case.name.split(" > ")[-1].strip()
+        # Vitest fullName: " DescribeName TestName" — strip and split on first space
+        stripped = case.name.strip()
+        if " " in stripped:
+            describe_name = stripped.split(" ", 1)[0]
+            it_name = stripped.rsplit(" ", 1)[1]
+        else:
+            describe_name = stripped
+            it_name = stripped
+
         matched = False
+        # Primary: look for the test name as a literal substring (it appears inside it('...'))
         for rel, content in test_files.items():
-            if it_name in content:
+            if it_name and it_name in content:
                 file_to_cases.setdefault(rel, []).append(case)
                 matched = True
                 break
         if not matched:
-            describe_name = case.name.split(" > ")[0].strip()
+            # Fallback: map describe block name to "<DescribeName>.test.tsx"
             for ext in (".test.tsx", ".test.ts"):
                 rel = str((test_dir / f"{describe_name}{ext}").relative_to(repo_root))
                 if rel in test_files:
@@ -446,6 +465,59 @@ def _strip_fences(text: str) -> str:
     return re.sub(r"\s*```\s*$", "", stripped, flags=re.MULTILINE).strip()
 
 
+def _try_parse_json_object(raw_text: str) -> dict[str, Any] | None:
+    """Try to extract a JSON object from *raw_text*; return None if none can be found.
+
+    Uses ``JSONDecoder.raw_decode`` which stops at the closing ``}`` and ignores
+    any trailing prose. Falls back to scanning forward to the first ``{`` in case
+    the response opens with prose.
+    """
+    text = _strip_fences(raw_text)
+    decoder = json.JSONDecoder()
+    for start in (0, text.find("{")):
+        if start == -1:
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(text[start:].lstrip())
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
+def _recover_json(
+    prose: str,
+    anthropic_client: anthropic.Anthropic,
+    context: str,
+) -> dict[str, Any]:
+    """Ask Claude to extract the JSON object from a prose response.
+
+    Used when the primary call returns prose instead of JSON.
+
+    Raises:
+        RuntimeError: If the recovery call fails or still cannot produce JSON.
+    """
+    try:
+        response = anthropic_client.messages.create(
+            model=_MODEL,
+            max_tokens=_MAX_TOKENS,
+            system=_JSON_RECOVERY_SYSTEM,
+            messages=[{"role": "user", "content": prose[:50_000]}],
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            f"Test Agent: recovery call failed ({context}) — {exc}"
+        ) from exc
+    result = _try_parse_json_object(response.content[0].text)
+    if result is None:
+        raise RuntimeError(
+            f"Test Agent: {context} response was not a valid JSON object even after recovery. "
+            f"Raw: {response.content[0].text[:300]}"
+        )
+    return result
+
+
 def _call_claude_json(
     system_prompt: str,
     user_message: str,
@@ -455,8 +527,11 @@ def _call_claude_json(
 ) -> dict[str, Any]:
     """Run a Claude call and return the response parsed as a JSON object.
 
+    If the response contains prose before or after the JSON, the JSON is extracted
+    automatically. If no JSON object can be found, a recovery call is made.
+
     Raises:
-        RuntimeError: On API failure or if the response is not a JSON object.
+        RuntimeError: On API failure or if even the recovery call cannot produce JSON.
     """
     try:
         response = anthropic_client.messages.create(
@@ -470,17 +545,12 @@ def _call_claude_json(
             f"Test Agent: Claude API call failed ({context}) — {exc}"
         ) from exc
 
-    raw_text = _strip_fences(response.content[0].text)
-    try:
-        parsed = json.loads(raw_text)
-        if not isinstance(parsed, dict):
-            raise ValueError(f"expected a JSON object, got {type(parsed).__name__}")
-        return parsed
-    except (json.JSONDecodeError, ValueError) as exc:
-        raise RuntimeError(
-            f"Test Agent: {context} response was not a valid JSON object. "
-            f"Raw: {raw_text[:300]}"
-        ) from exc
+    raw_text = response.content[0].text
+    parsed = _try_parse_json_object(raw_text)
+    if parsed is None:
+        print(f"{_LOG_PREFIX} {context} returned prose — running recovery extraction")
+        parsed = _recover_json(raw_text, anthropic_client, context)
+    return parsed
 
 
 def _call_claude_for_tests(
@@ -516,9 +586,14 @@ def _call_claude_split(
     frontend_existing = {k: v for k, v in existing_tests.items() if k.startswith(_FRONTEND_TEST_DIR)}
     backend_existing = {k: v for k, v in existing_tests.items() if k.startswith(_BACKEND_TEST_ROOT)}
 
+    source_files: dict[str, str] = payload.get("source_files") or {}
+    frontend_src = {k: v for k, v in source_files.items() if "frontend" in k and "__tests__" not in k}
+    backend_src = {k: v for k, v in source_files.items() if "backend/src" in k}
+
     frontend_msg = json.dumps({
         "acceptance_criteria": payload.get("acceptance_criteria") or [],
         "frontend_changes": payload.get("frontend_changes") or {},
+        "source_files": frontend_src,
         "existing_tests": frontend_existing,
         "note": "Generate ONLY frontend test files under demo-app/frontend/src/__tests__/",
     }, indent=2)
@@ -526,6 +601,7 @@ def _call_claude_split(
         "acceptance_criteria": payload.get("acceptance_criteria") or [],
         "backend_changes": payload.get("backend_changes") or {},
         "backend_endpoints": payload.get("backend_endpoints") or [],
+        "source_files": backend_src,
         "existing_tests": backend_existing,
         "note": "Generate ONLY backend test files under demo-app/backend/tests/",
     }, indent=2)

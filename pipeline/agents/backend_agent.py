@@ -39,6 +39,12 @@ _LOG_PREFIX = "[backend_agent]"
 
 _PROMPT_PATH = _PIPELINE_DIR / "prompts" / "backend.md"
 
+_JSON_RECOVERY_SYSTEM = """\
+You are a JSON extractor. The input contains a JSON object somewhere inside it. \
+Extract the JSON object and return it verbatim. \
+Respond with ONLY the JSON object — no preamble, no explanation, no markdown fences.\
+"""
+
 _SELF_REVIEW_SYSTEM_PROMPT = """\
 You are a senior .NET C# code reviewer. Check each provided file against these standards:
 1. Controllers must be thin — business logic lives in Services, not Controllers
@@ -215,6 +221,59 @@ def _strip_fences(text: str) -> str:
     return re.sub(r"\s*```\s*$", "", stripped, flags=re.MULTILINE).strip()
 
 
+def _try_parse_json_object(raw_text: str) -> dict[str, Any] | None:
+    """Try to extract a JSON object from *raw_text*; return None if none can be found.
+
+    Uses ``JSONDecoder.raw_decode`` which stops at the closing ``}`` and ignores
+    any trailing prose. Falls back to scanning forward to the first ``{`` in case
+    the response opens with prose.
+    """
+    text = _strip_fences(raw_text)
+    decoder = json.JSONDecoder()
+    for start in (0, text.find("{")):
+        if start == -1:
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(text[start:].lstrip())
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
+def _recover_json(
+    prose: str,
+    anthropic_client: anthropic.Anthropic,
+    context: str,
+) -> dict[str, Any]:
+    """Ask Claude to extract the JSON object from a prose response.
+
+    Used when the primary call returns prose instead of JSON.
+
+    Raises:
+        RuntimeError: If the recovery call fails or still cannot produce JSON.
+    """
+    try:
+        response = anthropic_client.messages.create(
+            model=_MODEL,
+            max_tokens=_MAX_TOKENS,
+            system=_JSON_RECOVERY_SYSTEM,
+            messages=[{"role": "user", "content": prose[:50_000]}],
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            f"Backend Agent: recovery call failed ({context}) — {exc}"
+        ) from exc
+    result = _try_parse_json_object(response.content[0].text)
+    if result is None:
+        raise RuntimeError(
+            f"Backend Agent: {context} response was not a valid JSON object even after recovery. "
+            f"Raw: {response.content[0].text[:300]}"
+        )
+    return result
+
+
 def _call_claude_json(
     system_prompt: str,
     user_message: str,
@@ -224,8 +283,11 @@ def _call_claude_json(
 ) -> dict[str, Any]:
     """Run a Claude call and return the response parsed as a JSON object.
 
+    If the response contains prose before or after the JSON, the JSON is extracted
+    automatically. If no JSON object can be found, a recovery call is made.
+
     Raises:
-        RuntimeError: On API failure or if the response is not a JSON object.
+        RuntimeError: On API failure or if even the recovery call cannot produce JSON.
     """
     try:
         response = anthropic_client.messages.create(
@@ -239,17 +301,12 @@ def _call_claude_json(
             f"Backend Agent: Claude API call failed ({context}) — {exc}"
         ) from exc
 
-    raw_text = _strip_fences(response.content[0].text)
-    try:
-        parsed = json.loads(raw_text)
-        if not isinstance(parsed, dict):
-            raise ValueError(f"expected a JSON object, got {type(parsed).__name__}")
-        return parsed
-    except (json.JSONDecodeError, ValueError) as exc:
-        raise RuntimeError(
-            f"Backend Agent: {context} response was not a valid JSON object. "
-            f"Raw: {raw_text[:300]}"
-        ) from exc
+    raw_text = response.content[0].text
+    parsed = _try_parse_json_object(raw_text)
+    if parsed is None:
+        print(f"{_LOG_PREFIX} {context} returned prose — running recovery extraction")
+        parsed = _recover_json(raw_text, anthropic_client, context)
+    return parsed
 
 
 def _call_claude_for_code(
