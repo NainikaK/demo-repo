@@ -193,12 +193,18 @@ def _call_claude(
 
 
 def _normalize_endpoint(ep: dict[str, Any]) -> dict[str, Any]:
-    """Ensure request_body and response_body are dicts, not strings."""
+    """Coerce request_body and response_body to dict regardless of what Claude returns."""
     ep = dict(ep)
     for field in ("request_body", "response_body"):
         val = ep.get(field)
-        if isinstance(val, str):
+        if isinstance(val, dict):
+            pass
+        elif isinstance(val, str):
             ep[field] = {"description": val}
+        elif val is None:
+            ep[field] = {}
+        else:
+            ep[field] = {}
     return ep
 
 
