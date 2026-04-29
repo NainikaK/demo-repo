@@ -56,6 +56,15 @@ def create_feature_branch(work_item_id: str, slug: str) -> str:
     """
     branch_name = f"{_BRANCH_PREFIX}/{work_item_id}-{slug}"
     repo_root = get_repo_root()
+    # Discard any uncommitted changes so checkout main never fails on a dirty tree
+    try:
+        run_git(["checkout", "--", "."], cwd=repo_root)
+    except RuntimeError:
+        pass
+    try:
+        run_git(["clean", "-fd"], cwd=repo_root)
+    except RuntimeError:
+        pass
     run_git(["checkout", _MAIN_BRANCH], cwd=repo_root)
     existing = run_git(["branch", "--list", branch_name], cwd=repo_root).strip()
     if existing:

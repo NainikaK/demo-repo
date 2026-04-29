@@ -70,13 +70,17 @@ def run(
     print(f"{_LOG_PREFIX} checking out feature branch {branch_name!r}")
     git_utils.checkout_branch(branch_name)
 
-    frontend_test_dir = git_utils.get_repo_root() / _FRONTEND_TEST_DIR
+    repo_root = git_utils.get_repo_root()
+    frontend_test_dir = repo_root / _FRONTEND_TEST_DIR
+    deleted_test_files: list[str] = []
     if frontend_test_dir.exists():
         for test_file in sorted(frontend_test_dir.rglob("*")):
             if test_file.is_file() and (
                 test_file.name.endswith(".test.tsx") or test_file.name.endswith(".test.ts")
             ):
+                rel = str(test_file.relative_to(repo_root))
                 test_file.unlink()
+                deleted_test_files.append(rel)
                 print(f"{_LOG_PREFIX} deleted stale frontend test: {test_file.name}")
 
     print(f"{_LOG_PREFIX} reading existing test files")
@@ -93,18 +97,20 @@ def run(
     print(f"{_LOG_PREFIX} writing {len(file_map)} test file(s)")
     written_files = _validate_and_write_tests(file_map)
 
-    if written_files:
+    # Stage deletions + new files together so the working tree stays clean
+    files_to_commit = deleted_test_files + written_files
+    if files_to_commit:
         commit_message = f"[{work_item_id}] tests: {structured_spec.title}"
-        git_utils.commit_changes(written_files, commit_message)
+        git_utils.commit_changes(files_to_commit, commit_message)
         git_utils.push_branch(branch_name)
 
     print(f"{_LOG_PREFIX} running frontend test suite")
     frontend_cases = _run_frontend_tests()
-    frontend_cases = _correct_frontend_tests(frontend_cases, frontend_summary, anthropic_client)
+    frontend_cases = _correct_frontend_tests(frontend_cases, frontend_summary, anthropic_client, branch_name)
 
     print(f"{_LOG_PREFIX} running backend test suite")
     backend_cases = _run_backend_tests(backend_summary)
-    backend_cases = _correct_backend_tests(backend_cases, backend_summary, anthropic_client)
+    backend_cases = _correct_backend_tests(backend_cases, backend_summary, anthropic_client, branch_name)
 
     results = _aggregate_results(work_item_id, frontend_cases, backend_cases, written_files)
     print(
@@ -114,22 +120,26 @@ def run(
     return results
 
 
-_CORRECTION_SYSTEM_PROMPT = """\
-You are a senior QA engineer. The following frontend tests are failing. Read the \
-test files and source files carefully. Fix ONLY the test files to match the actual \
-source code — do not change source files. Common issues: wrong import style \
-(default vs named), wrong property names, wrong mock setup, wrong expected values. \
-Return a JSON object of {filepath: corrected_content} for only the files that need \
-changes.\
+_FRONTEND_SINGLE_FILE_CORRECTION_PROMPT = """\
+You are a senior QA engineer. A single frontend test file is failing. \
+Read the test file content and source files carefully. \
+Fix ONLY the test file to match the actual source code — do not modify source files. \
+Common issues: wrong import style (default vs named), wrong property names, \
+wrong mock setup, wrong expected values. \
+Respond with only the corrected TypeScript file content. \
+No JSON wrapper, no markdown fences, no explanation. \
+Output the raw TypeScript file content only.\
 """
 
-_BACKEND_CORRECTION_SYSTEM_PROMPT = """\
-You are a senior QA engineer. The following backend tests are failing. Read the \
-test files and source files carefully. Fix ONLY the test files to match the actual \
-source code — do not change source files. Common issues: wrong constructor \
-arguments, wrong method names, wrong expected values, missing mocks. \
-Return a JSON object of {filepath: corrected_content} for only the files that need \
-changes.\
+_BACKEND_SINGLE_FILE_CORRECTION_PROMPT = """\
+You are a senior QA engineer. A single backend C# test file is failing. \
+Read the test file content and source files carefully. \
+Fix ONLY the test file to match the actual source code — do not modify source files. \
+Common issues: wrong constructor arguments, wrong method names, \
+wrong expected values, missing using statements. \
+Respond with only the corrected C# file content. \
+No JSON wrapper, no markdown fences, no explanation. \
+Output the raw C# file content only.\
 """
 
 
@@ -144,13 +154,87 @@ def _read_files_from_paths(paths: list[str]) -> dict[str, str]:
     return result
 
 
+def _map_frontend_failures_to_files(
+    failed: list[TestCase],
+    test_dir: Path,
+    repo_root: Path,
+) -> dict[str, list[TestCase]]:
+    """Map failing frontend cases to test files via substring search, with describe-name fallback."""
+    test_files: dict[str, str] = {}
+    for f in sorted(test_dir.rglob("*")):
+        if f.is_file() and f.suffix in {".ts", ".tsx"}:
+            rel = str(f.relative_to(repo_root))
+            try:
+                test_files[rel] = f.read_text(encoding="utf-8")
+            except OSError:
+                pass
+
+    file_to_cases: dict[str, list[TestCase]] = {}
+    for case in failed:
+        it_name = case.name.split(" > ")[-1].strip()
+        matched = False
+        for rel, content in test_files.items():
+            if it_name in content:
+                file_to_cases.setdefault(rel, []).append(case)
+                matched = True
+                break
+        if not matched:
+            describe_name = case.name.split(" > ")[0].strip()
+            for ext in (".test.tsx", ".test.ts"):
+                rel = str((test_dir / f"{describe_name}{ext}").relative_to(repo_root))
+                if rel in test_files:
+                    file_to_cases.setdefault(rel, []).append(case)
+                    break
+    return file_to_cases
+
+
+def _map_backend_failures_to_files(
+    failed: list[TestCase],
+    test_root: Path,
+    repo_root: Path,
+) -> dict[str, list[TestCase]]:
+    """Map failing backend cases to .cs files by xUnit class name, with method-name fallback."""
+    cs_files: dict[str, str] = {}
+    for f in sorted(test_root.rglob("*.cs")):
+        if f.is_file():
+            rel = str(f.relative_to(repo_root))
+            try:
+                cs_files[rel] = f.read_text(encoding="utf-8")
+            except OSError:
+                pass
+
+    file_to_cases: dict[str, list[TestCase]] = {}
+    for case in failed:
+        name_parts = case.name.rsplit(".", 2)
+        class_candidate = name_parts[-2] if len(name_parts) >= 2 else ""
+        matched = False
+        if class_candidate:
+            for rel in cs_files:
+                if Path(rel).stem == class_candidate:
+                    file_to_cases.setdefault(rel, []).append(case)
+                    matched = True
+                    break
+        if not matched:
+            method_name = case.name.rsplit(".", 1)[-1].split("(")[0]
+            for rel, content in cs_files.items():
+                if method_name in content:
+                    file_to_cases.setdefault(rel, []).append(case)
+                    break
+    return file_to_cases
+
+
 def _correct_frontend_tests(
     cases: list[TestCase],
     frontend_summary: ChangeSummary,
     anthropic_client: anthropic.Anthropic,
+    branch_name: str,
 ) -> list[TestCase]:
-    """Attempt up to _CORRECTION_MAX_ATTEMPTS to fix failing frontend tests via Claude."""
+    """Fix failing frontend tests one file at a time, up to _CORRECTION_MAX_ATTEMPTS rounds."""
     best = cases
+    source_files = _read_files_from_paths(
+        frontend_summary.files_modified + frontend_summary.files_created
+    )
+
     for attempt in range(1, _CORRECTION_MAX_ATTEMPTS + 1):
         failed = [c for c in best if c.status == TestStatus.failed]
         if not failed:
@@ -159,52 +243,50 @@ def _correct_frontend_tests(
 
         repo_root = git_utils.get_repo_root()
         test_dir = repo_root / _FRONTEND_TEST_DIR
-        test_files: dict[str, str] = {}
-        if test_dir.exists():
-            for f in sorted(test_dir.rglob("*")):
-                if f.is_file() and f.suffix in {".ts", ".tsx"}:
-                    rel = str(f.relative_to(repo_root))
-                    try:
-                        test_files[rel] = f.read_text(encoding="utf-8")
-                    except OSError:
-                        pass
-
-        source_files = _read_files_from_paths(
-            frontend_summary.files_modified + frontend_summary.files_created
-        )
-        correction_message = json.dumps({
-            "failing_tests": [{"name": c.name, "error": c.error_message or ""} for c in failed],
-            "test_files": test_files,
-            "source_files": source_files,
-        }, indent=2)
-
-        try:
-            response = anthropic_client.messages.create(
-                model=_MODEL,
-                max_tokens=_MAX_TOKENS,
-                system=_CORRECTION_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": correction_message}],
-            )
-        except Exception as exc:
-            print(f"{_LOG_PREFIX} warning: frontend correction API call failed (attempt {attempt}) — {exc}")
+        if not test_dir.exists():
             break
 
-        raw_text = _strip_fences(response.content[0].text)
-        if not raw_text.startswith("{"):
+        file_failures = _map_frontend_failures_to_files(failed, test_dir, repo_root)
+        if not file_failures:
+            print(f"{_LOG_PREFIX} could not map frontend failures to files — skipping")
+            break
+
+        any_fixed = False
+        for rel_path, file_cases in file_failures.items():
+            abs_path = repo_root / rel_path
             try:
-                raw_text = raw_text[raw_text.index("{"):]
-            except ValueError:
-                pass
-        try:
-            fixed_map: dict[str, str] = {str(k): str(v) for k, v in json.loads(raw_text).items()}
-        except (json.JSONDecodeError, ValueError) as exc:
-            print(f"{_LOG_PREFIX} warning: frontend correction response not valid JSON (attempt {attempt}) — {exc}")
+                current_content = abs_path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+
+            msg = json.dumps({
+                "test_file_path": rel_path,
+                "failing_tests": [{"name": c.name, "error": c.error_message or ""} for c in file_cases],
+                "test_file_content": current_content,
+                "source_files": source_files,
+            }, indent=2)
+
+            print(f"{_LOG_PREFIX} correcting {rel_path} ({len(file_cases)} failure(s))")
+            try:
+                response = anthropic_client.messages.create(
+                    model=_MODEL,
+                    max_tokens=_MAX_TOKENS,
+                    system=_FRONTEND_SINGLE_FILE_CORRECTION_PROMPT,
+                    messages=[{"role": "user", "content": msg}],
+                )
+            except Exception as exc:
+                print(f"{_LOG_PREFIX} warning: correction call failed for {rel_path} — {exc}")
+                continue
+
+            corrected = _strip_fences(response.content[0].text.strip())
+            git_utils.write_file(rel_path, corrected)
+            git_utils.commit_changes([rel_path], f"[auto-fix] correct test: {rel_path}")
+            any_fixed = True
+
+        if not any_fixed:
             break
 
-        for path, content in fixed_map.items():
-            if path.startswith(_FRONTEND_TEST_DIR):
-                git_utils.write_file(path, content)
-
+        git_utils.push_branch(branch_name)
         new_cases = _run_frontend_tests()
         new_failed = sum(1 for c in new_cases if c.status == TestStatus.failed)
         if new_failed < len(failed):
@@ -219,9 +301,14 @@ def _correct_backend_tests(
     cases: list[TestCase],
     backend_summary: ChangeSummary,
     anthropic_client: anthropic.Anthropic,
+    branch_name: str,
 ) -> list[TestCase]:
-    """Attempt up to _CORRECTION_MAX_ATTEMPTS to fix failing backend tests via Claude."""
+    """Fix failing backend tests one file at a time, up to _CORRECTION_MAX_ATTEMPTS rounds."""
     best = cases
+    source_files = _read_files_from_paths(
+        backend_summary.files_modified + backend_summary.files_created
+    )
+
     for attempt in range(1, _CORRECTION_MAX_ATTEMPTS + 1):
         failed = [c for c in best if c.status == TestStatus.failed]
         if not failed:
@@ -230,52 +317,50 @@ def _correct_backend_tests(
 
         repo_root = git_utils.get_repo_root()
         test_root = repo_root / _BACKEND_TEST_ROOT
-        test_files: dict[str, str] = {}
-        if test_root.exists():
-            for f in sorted(test_root.rglob("*")):
-                if f.is_file() and f.suffix == ".cs":
-                    rel = str(f.relative_to(repo_root))
-                    try:
-                        test_files[rel] = f.read_text(encoding="utf-8")
-                    except OSError:
-                        pass
-
-        source_files = _read_files_from_paths(
-            backend_summary.files_modified + backend_summary.files_created
-        )
-        correction_message = json.dumps({
-            "failing_tests": [{"name": c.name, "error": c.error_message or ""} for c in failed],
-            "test_files": test_files,
-            "source_files": source_files,
-        }, indent=2)
-
-        try:
-            response = anthropic_client.messages.create(
-                model=_MODEL,
-                max_tokens=_MAX_TOKENS,
-                system=_BACKEND_CORRECTION_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": correction_message}],
-            )
-        except Exception as exc:
-            print(f"{_LOG_PREFIX} warning: backend correction API call failed (attempt {attempt}) — {exc}")
+        if not test_root.exists():
             break
 
-        raw_text = _strip_fences(response.content[0].text)
-        if not raw_text.startswith("{"):
+        file_failures = _map_backend_failures_to_files(failed, test_root, repo_root)
+        if not file_failures:
+            print(f"{_LOG_PREFIX} could not map backend failures to files — skipping")
+            break
+
+        any_fixed = False
+        for rel_path, file_cases in file_failures.items():
+            abs_path = repo_root / rel_path
             try:
-                raw_text = raw_text[raw_text.index("{"):]
-            except ValueError:
-                pass
-        try:
-            fixed_map = {str(k): str(v) for k, v in json.loads(raw_text).items()}
-        except (json.JSONDecodeError, ValueError) as exc:
-            print(f"{_LOG_PREFIX} warning: backend correction response not valid JSON (attempt {attempt}) — {exc}")
+                current_content = abs_path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+
+            msg = json.dumps({
+                "test_file_path": rel_path,
+                "failing_tests": [{"name": c.name, "error": c.error_message or ""} for c in file_cases],
+                "test_file_content": current_content,
+                "source_files": source_files,
+            }, indent=2)
+
+            print(f"{_LOG_PREFIX} correcting {rel_path} ({len(file_cases)} failure(s))")
+            try:
+                response = anthropic_client.messages.create(
+                    model=_MODEL,
+                    max_tokens=_MAX_TOKENS,
+                    system=_BACKEND_SINGLE_FILE_CORRECTION_PROMPT,
+                    messages=[{"role": "user", "content": msg}],
+                )
+            except Exception as exc:
+                print(f"{_LOG_PREFIX} warning: correction call failed for {rel_path} — {exc}")
+                continue
+
+            corrected = _strip_fences(response.content[0].text.strip())
+            git_utils.write_file(rel_path, corrected)
+            git_utils.commit_changes([rel_path], f"[auto-fix] correct test: {rel_path}")
+            any_fixed = True
+
+        if not any_fixed:
             break
 
-        for path, content in fixed_map.items():
-            if path.startswith(_BACKEND_TEST_ROOT):
-                git_utils.write_file(path, content)
-
+        git_utils.push_branch(branch_name)
         new_cases = _run_backend_tests(backend_summary)
         new_failed = sum(1 for c in new_cases if c.status == TestStatus.failed)
         if new_failed < len(failed):
