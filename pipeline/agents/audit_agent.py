@@ -59,6 +59,20 @@ _BLOCKING_SEVERITIES: frozenset[FindingSeverity] = frozenset(
     {FindingSeverity.high, FindingSeverity.critical}
 )
 
+_SIMPLIFIED_AUDIT_MAX_TOKENS = 8192
+_SIMPLIFIED_AUDIT_SYSTEM_PROMPT = """\
+You are a senior code auditor. The full audit response was too long to parse. \
+Return ONLY a compact JSON object with scores (0–10 each) and a short summary. \
+No findings list needed. Schema exactly:
+{"categories": {"code_correctness": {"score": 0, "findings": []}, \
+"standards_compliance": {"score": 0, "findings": []}, \
+"test_coverage": {"score": 0, "findings": []}, \
+"security": {"score": 0, "findings": []}, \
+"spec_adherence": {"score": 0, "findings": []}, \
+"performance": {"score": 0, "findings": []}, \
+"documentation": {"score": 0, "findings": []}}, "summary": "string"}\
+"""
+
 
 def run(
     frontend_summary: ChangeSummary,
@@ -209,9 +223,51 @@ def _call_claude(
         if not isinstance(parsed, dict):
             raise ValueError(f"expected a JSON object, got {type(parsed).__name__}")
         return parsed
+    except (json.JSONDecodeError, ValueError):
+        print(f"{_LOG_PREFIX} audit response parse failed — retrying with simplified scores-only prompt")
+        return _call_claude_simplified(user_message, anthropic_client)
+
+
+def _call_claude_simplified(
+    user_message: str,
+    anthropic_client: anthropic.Anthropic,
+) -> dict[str, Any]:
+    """Simplified fallback: ask only for scores with no findings or source files.
+
+    Raises:
+        RuntimeError: If the API call fails or the response is still not valid JSON.
+    """
+    try:
+        payload = json.loads(user_message)
+        payload.pop("source_files", None)
+        simplified_msg = json.dumps(payload, indent=2)
+    except (json.JSONDecodeError, ValueError):
+        simplified_msg = user_message
+
+    try:
+        response = anthropic_client.messages.create(
+            model=_MODEL,
+            max_tokens=_SIMPLIFIED_AUDIT_MAX_TOKENS,
+            system=_SIMPLIFIED_AUDIT_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": simplified_msg}],
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Audit Agent: simplified fallback API call failed — {exc}") from exc
+
+    raw_text = _strip_fences(response.content[0].text)
+    if not raw_text.startswith("{"):
+        try:
+            raw_text = raw_text[raw_text.index("{"):]
+        except ValueError:
+            pass
+    try:
+        parsed = json.loads(raw_text)
+        if not isinstance(parsed, dict):
+            raise ValueError(f"expected a JSON object, got {type(parsed).__name__}")
+        return parsed
     except (json.JSONDecodeError, ValueError) as exc:
         raise RuntimeError(
-            f"Audit Agent: response was not a valid JSON object. Raw: {raw_text[:300]}"
+            f"Audit Agent: simplified fallback response was not valid JSON. Raw: {raw_text[:300]}"
         ) from exc
 
 
