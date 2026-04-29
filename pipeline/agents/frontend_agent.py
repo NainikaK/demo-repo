@@ -195,7 +195,6 @@ def _call_claude_json(
             system=system_prompt,
             messages=[
                 {"role": "user", "content": user_message},
-                {"role": "assistant", "content": "{"},
             ],
         )
     except Exception as exc:
@@ -224,7 +223,6 @@ def _call_claude_for_code(
             system=system_prompt,
             messages=[
                 {"role": "user", "content": user_message},
-                {"role": "assistant", "content": "{"},
             ],
         )
     except Exception as exc:
