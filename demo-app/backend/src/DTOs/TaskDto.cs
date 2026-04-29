@@ -15,6 +15,9 @@ public class TaskDto
     /// <summary>Gets or sets the task description.</summary>
     public string Description { get; set; } = string.Empty;
 
+    /// <summary>Gets or sets the optional due date in ISO 8601 format (yyyy-MM-dd), or null.</summary>
+    public string? DueDate { get; set; }
+
     /// <summary>Gets or sets whether the task is completed.</summary>
     public bool Completed { get; set; }
 

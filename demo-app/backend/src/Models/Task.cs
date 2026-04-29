@@ -14,6 +14,9 @@ public class Task
     /// <summary>Gets or sets the task description.</summary>
     public string Description { get; set; } = string.Empty;
 
+    /// <summary>Gets or sets the optional due date.</summary>
+    public DateOnly? DueDate { get; set; }
+
     /// <summary>Gets or sets whether the task is completed.</summary>
     public bool Completed { get; set; }
 

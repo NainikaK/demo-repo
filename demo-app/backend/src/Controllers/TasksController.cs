@@ -14,7 +14,10 @@ public sealed class TasksController : ControllerBase
 {
     private readonly ITaskService _taskService;
 
+    private const string DueDateFormat = "yyyy-MM-dd";
+
     /// <summary>Initialises the controller with the task service.</summary>
+    /// <param name="taskService">The task service.</param>
     public TasksController(ITaskService taskService)
     {
         _taskService = taskService;
@@ -46,7 +49,30 @@ public sealed class TasksController : ControllerBase
         {
             return NotFound();
         }
+
         return Ok(MapToDto(task));
+    }
+
+    /// <summary>Creates a new task.</summary>
+    /// <param name="dto">The data required to create the task.</param>
+    /// <returns>The newly created task.</returns>
+    /// <response code="201">Task created successfully.</response>
+    /// <response code="400">Request body is invalid (e.g. missing or empty title).</response>
+    [HttpPost]
+    [ProducesResponseType(typeof(TaskDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateTask([FromBody] CreateTaskDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Title))
+        {
+            ModelState.AddModelError(nameof(dto.Title), "Title is required and must not be whitespace.");
+            return ValidationProblem(ModelState);
+        }
+
+        var task = await _taskService.CreateTaskAsync(dto);
+        var result = MapToDto(task);
+
+        return CreatedAtAction(nameof(GetTaskById), new { id = result.Id }, result);
     }
 
     private static TaskDto MapToDto(TaskModel task) =>
@@ -55,6 +81,9 @@ public sealed class TasksController : ControllerBase
             Id = task.Id,
             Title = task.Title,
             Description = task.Description,
+            DueDate = task.DueDate.HasValue
+                ? task.DueDate.Value.ToString(DueDateFormat)
+                : null,
             Completed = task.Completed,
             CreatedAt = task.CreatedAt,
         };

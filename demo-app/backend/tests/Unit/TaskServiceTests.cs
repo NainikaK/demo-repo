@@ -1,3 +1,4 @@
+using DemoApp.Api.DTOs;
 using DemoApp.Api.Services;
 using Xunit;
 
@@ -33,5 +34,90 @@ public sealed class TaskServiceTests
         var task = await _sut.GetTaskByIdAsync("nonexistent");
 
         Assert.Null(task);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_ValidDto_ReturnsPersistedTask()
+    {
+        var dto = new CreateTaskDto
+        {
+            Title = "New Task",
+            Description = "A description",
+            DueDate = "2025-09-01",
+        };
+
+        var task = await _sut.CreateTaskAsync(dto);
+
+        Assert.NotNull(task);
+        Assert.Equal("New Task", task.Title);
+        Assert.Equal("A description", task.Description);
+        Assert.Equal(new DateOnly(2025, 9, 1), task.DueDate);
+        Assert.False(task.Completed);
+        Assert.NotEmpty(task.Id);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_ValidDto_TaskAppearsInGetAll()
+    {
+        var dto = new CreateTaskDto { Title = "Appended Task" };
+
+        await _sut.CreateTaskAsync(dto);
+
+        var all = await _sut.GetAllTasksAsync();
+        Assert.Equal(4, all.Count());
+        Assert.Contains(all, t => t.Title == "Appended Task");
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_TitleWithWhitespace_TrimsTitleOnPersist()
+    {
+        var dto = new CreateTaskDto { Title = "  Padded Title  " };
+
+        var task = await _sut.CreateTaskAsync(dto);
+
+        Assert.Equal("Padded Title", task.Title);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_NullDescription_StoresEmptyString()
+    {
+        var dto = new CreateTaskDto { Title = "No Description", Description = null };
+
+        var task = await _sut.CreateTaskAsync(dto);
+
+        Assert.Equal(string.Empty, task.Description);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_NullDueDate_StoresNullDueDate()
+    {
+        var dto = new CreateTaskDto { Title = "No Due Date", DueDate = null };
+
+        var task = await _sut.CreateTaskAsync(dto);
+
+        Assert.Null(task.DueDate);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_InvalidDueDateFormat_StoresNullDueDate()
+    {
+        var dto = new CreateTaskDto { Title = "Bad Date", DueDate = "not-a-date" };
+
+        var task = await _sut.CreateTaskAsync(dto);
+
+        Assert.Null(task.DueDate);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_MultipleCreations_AssignsIncrementingIds()
+    {
+        var dto1 = new CreateTaskDto { Title = "Task A" };
+        var dto2 = new CreateTaskDto { Title = "Task B" };
+
+        var task1 = await _sut.CreateTaskAsync(dto1);
+        var task2 = await _sut.CreateTaskAsync(dto2);
+
+        Assert.NotEqual(task1.Id, task2.Id);
+        Assert.Equal(int.Parse(task1.Id) + 1, int.Parse(task2.Id));
     }
 }

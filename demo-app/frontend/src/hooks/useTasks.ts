@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Task } from '../types';
+import { TASKS_URL } from '../utils/constants';
 
 interface UseTasksResult {
   tasks: Task[];
   loading: boolean;
   error: string | null;
   refetch: () => void;
+  addTask: (task: Task) => void;
 }
-
-const TASKS_URL = 'http://localhost:5000/api/v1/tasks';
 
 export function useTasks(): UseTasksResult {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -32,9 +32,13 @@ export function useTasks(): UseTasksResult {
     }
   }, []);
 
+  const addTask = useCallback((task: Task) => {
+    setTasks((prev) => [task, ...prev]);
+  }, []);
+
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
 
-  return { tasks, loading, error, refetch: fetchTasks };
+  return { tasks, loading, error, refetch: fetchTasks, addTask };
 }

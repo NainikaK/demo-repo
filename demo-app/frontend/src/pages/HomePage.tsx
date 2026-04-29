@@ -1,5 +1,7 @@
 import { TaskCard } from '../components/TaskCard';
+import { TaskForm } from '../components/TaskForm';
 import { useTasks } from '../hooks/useTasks';
+import type { Task } from '../types';
 import {
   LABEL_ERROR_PREFIX,
   LABEL_LOADING,
@@ -10,7 +12,11 @@ import {
 } from '../utils/strings';
 
 export function HomePage() {
-  const { tasks, loading, error, refetch } = useTasks();
+  const { tasks, loading, error, refetch, addTask } = useTasks();
+
+  const handleTaskCreated = (task: Task) => {
+    addTask(task);
+  };
 
   if (loading) {
     return (
@@ -40,6 +46,7 @@ export function HomePage() {
 
   return (
     <main className="max-w-2xl mx-auto px-6 py-8">
+      <TaskForm onTaskCreated={handleTaskCreated} />
       <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
         {LABEL_TASKS_HEADING}
       </h2>
