@@ -153,6 +153,7 @@ obj/
 *.user
 *.suo
 .vs/
+TestResults/
 
 # Pipeline run records — keep the placeholder, ignore actual run files
 runs/*

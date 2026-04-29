@@ -10,6 +10,7 @@ import json
 import re
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -404,9 +405,17 @@ def _build_test_gen_message(
     existing_tests: dict[str, str],
 ) -> str:
     """Assemble the Claude user message for test generation."""
+    all_changed_paths = (
+        frontend_summary.files_created
+        + frontend_summary.files_modified
+        + backend_summary.files_created
+        + backend_summary.files_modified
+    )
+    source_files = _read_files_from_paths(all_changed_paths)
     return json.dumps({
         "acceptance_criteria": spec.acceptance_criteria,
         "suggested_user_stories": spec.suggested_user_stories,
+        "source_files": source_files,
         "frontend_changes": {
             "files_created": frontend_summary.files_created,
             "files_modified": frontend_summary.files_modified,
@@ -582,16 +591,31 @@ def _run_backend_tests(backend_summary: ChangeSummary) -> list[TestCase]:
         print(f"{_LOG_PREFIX} no backend changes — skipping backend test suite")
         return []
     backend_dir = git_utils.get_repo_root() / "demo-app" / "backend"
-    results_file = backend_dir / "TestResults" / "test-results.json"
+    results_dir = backend_dir / "TestResults"
+    results_file = results_dir / "test-results.trx"
     try:
-        subprocess.run(
-            ["dotnet", "test", "--logger", "json;LogFileName=test-results.json"],
+        proc = subprocess.run(
+            [
+                "dotnet", "test",
+                "--logger", "trx;LogFileName=test-results.trx",
+                "--results-directory", str(results_dir),
+            ],
             cwd=backend_dir,
             capture_output=True,
             text=True,
             timeout=_TEST_RUNNER_TIMEOUT,
         )
-        return _parse_dotnet_output(results_file)
+        if not results_file.exists():
+            # Build or runtime failure — surface stderr as a failed test case
+            err = (proc.stderr or proc.stdout or "no output")[:500]
+            print(f"{_LOG_PREFIX} dotnet test produced no results file — stderr: {err}")
+            return [TestCase(
+                name="dotnet_build_or_runtime_error",
+                status=TestStatus.failed,
+                duration_ms=0.0,
+                error_message=err,
+            )]
+        return _parse_trx_output(results_file)
     except Exception as exc:
         print(f"{_LOG_PREFIX} warning: backend test runner failed — {exc}")
         return [TestCase(
@@ -638,40 +662,41 @@ def _parse_vitest_output(raw: str) -> list[TestCase]:
     return cases
 
 
-def _parse_dotnet_output(results_file: Path) -> list[TestCase]:
-    """Parse the dotnet test JSON results file into TestCase objects."""
-    if not results_file.exists():
-        return [TestCase(
-            name="dotnet_results_missing",
-            status=TestStatus.failed,
-            duration_ms=0.0,
-            error_message=f"Results file not found at {results_file}",
-        )]
+def _parse_trx_output(results_file: Path) -> list[TestCase]:
+    """Parse a dotnet test TRX results file (XML) into TestCase objects."""
     try:
-        data = json.loads(results_file.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
-        return [TestCase(name="dotnet_parse_error", status=TestStatus.failed,
+        tree = ET.parse(results_file)
+    except ET.ParseError as exc:
+        return [TestCase(name="trx_parse_error", status=TestStatus.failed,
                          duration_ms=0.0, error_message=str(exc))]
 
+    ns = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
     cases: list[TestCase] = []
-    raw_results = data.get("testResults") or data.get("TestResults") or []
-    for result in raw_results:
-        name = (result.get("displayName") or result.get("testName")
-                or (result.get("TestCase") or {}).get("FullyQualifiedName") or "unknown")
-        outcome = (result.get("resultState") or result.get("outcome")
-                   or result.get("Outcome") or "Failed").lower()
-        if outcome in {"passed", "pass"}:
+    for result in tree.findall(".//t:UnitTestResult", ns):
+        name = result.get("testName", "unknown")
+        outcome = (result.get("outcome") or "Failed").lower()
+        if outcome == "passed":
             status = TestStatus.passed
         elif outcome in {"skipped", "notexecuted"}:
             status = TestStatus.skipped
         else:
             status = TestStatus.failed
-        error = result.get("errorMessage") or result.get("ErrorMessage")
+        duration_str = result.get("duration", "0")
+        error_msg: str | None = None
+        if status == TestStatus.failed:
+            msg_el = result.find(".//t:ErrorInfo/t:Message", ns)
+            stack_el = result.find(".//t:ErrorInfo/t:StackTrace", ns)
+            parts = []
+            if msg_el is not None and msg_el.text:
+                parts.append(msg_el.text.strip())
+            if stack_el is not None and stack_el.text:
+                parts.append(stack_el.text.strip())
+            error_msg = "\n".join(parts) or None
         cases.append(TestCase(
             name=name,
             status=status,
-            duration_ms=_parse_duration_ms(result.get("duration") or result.get("Duration") or "0"),
-            error_message=error,
+            duration_ms=_parse_duration_ms(duration_str),
+            error_message=error_msg,
         ))
     return cases
 
