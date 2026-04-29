@@ -182,6 +182,11 @@ def _create_github_pr(title: str, body: str, branch_name: str, *, draft: bool) -
         raise RuntimeError("Supervisor Agent: GITHUB_REPO environment variable is not set.")
     try:
         repo = Github(github_pat).get_repo(_GITHUB_REPO)
+        existing = list(repo.get_pulls(state="open", head=f"{repo.owner.login}:{branch_name}"))
+        if existing:
+            pr = existing[0]
+            print(f"{_LOG_PREFIX} reusing existing open PR #{pr.number} for branch {branch_name!r}")
+            return pr
         return repo.create_pull(
             title=title,
             body=body,
