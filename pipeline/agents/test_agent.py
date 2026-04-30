@@ -142,8 +142,14 @@ _FRONTEND_SINGLE_FILE_CORRECTION_PROMPT = """\
 You are a senior QA engineer. A single frontend test file is failing. \
 Read the test file content and source files carefully. \
 Fix ONLY the test file to match the actual source code — do not modify source files. \
-Common issues: wrong import style (default vs named), wrong property names, \
-wrong mock setup, wrong expected values. \
+Common issues to check first:
+- Wrong import names: verify every import against the actual exports in source_files.
+- Constants that are functions: if source_files shows \
+  `export const FOO = (id: string) => ...` then FOO is a function, not a string. \
+  Mock it with `vi.mock('../utils/constants', () => ({ FOO: vi.fn((id) => \`/api/v1/items/\${id}\`) }))`.
+- State type mismatch: if a hook exports `completing: boolean`, tests must not treat it as a Set.
+- Wrong expected error message: match the exact string from the source file.
+- Use vi.fn() / vi.mock() / vi.stubGlobal() — never jest.*
 Respond ONLY with a valid JSON object — no preamble, no explanation, no markdown fences: \
 {"corrected_content": "<complete corrected TypeScript file content>"}\
 """
@@ -252,6 +258,13 @@ def _map_backend_failures_to_files(
     return file_to_cases
 
 
+_FRONTEND_UTILITY_FILES = [
+    "demo-app/frontend/src/utils/constants.ts",
+    "demo-app/frontend/src/utils/strings.ts",
+    "demo-app/frontend/src/types/index.ts",
+]
+
+
 def _correct_frontend_tests(
     cases: list[TestCase],
     frontend_summary: ChangeSummary,
@@ -261,7 +274,7 @@ def _correct_frontend_tests(
     """Fix failing frontend tests one file at a time, up to _CORRECTION_MAX_ATTEMPTS rounds."""
     best = cases
     source_files = _read_files_from_paths(
-        frontend_summary.files_modified + frontend_summary.files_created
+        frontend_summary.files_modified + frontend_summary.files_created + _FRONTEND_UTILITY_FILES
     )
 
     for attempt in range(1, _CORRECTION_MAX_ATTEMPTS + 1):

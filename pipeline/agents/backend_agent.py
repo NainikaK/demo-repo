@@ -417,7 +417,8 @@ def _run_self_review(
             if path.startswith(_BACKEND_ROOT):
                 git_utils.write_file(path, content)
                 updated_map[path] = content
-        violations_fixed = list(violations_found)
+        if fixed:
+            violations_fixed = list(violations_found)
 
     clean = (not violations_found) or (len(violations_fixed) == len(violations_found))
     print(f"{_LOG_PREFIX} self-review complete clean={clean}")
@@ -433,9 +434,19 @@ def _apply_fixes(
     violations: list[str],
     anthropic_client: anthropic.Anthropic,
 ) -> dict[str, str]:
-    """Ask Claude to fix the listed violations and return corrected file contents."""
+    """Ask Claude to fix the listed violations and return corrected file contents.
+
+    Returns an empty dict on failure so the caller can proceed with original files.
+    C# source code embedded in JSON values frequently causes parse failures; a failed
+    fix call is non-fatal — violations remain recorded in the self-review result for
+    the Audit Agent to flag.
+    """
     fix_message = json.dumps({"violations_to_fix": violations, "current_files": file_map}, indent=2)
-    return _call_claude_for_code(_FIX_SYSTEM_PROMPT, fix_message, anthropic_client)
+    try:
+        return _call_claude_for_code(_FIX_SYSTEM_PROMPT, fix_message, anthropic_client)
+    except RuntimeError as exc:
+        print(f"{_LOG_PREFIX} warning: self-review fix call failed — violations logged but unfixed: {exc}")
+        return {}
 
 
 def _load_system_prompt() -> str:
