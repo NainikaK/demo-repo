@@ -43,7 +43,7 @@ _LOG_PREFIX = "[spec_agent]"
 _CODE_EXTENSIONS: frozenset[str] = frozenset({".tsx", ".ts", ".cs"})
 _SKIP_DIRS: frozenset[str] = frozenset({"node_modules", "bin", "obj", "dist", ".git"})
 _MAX_CONTENT_LINES: int = 50
-_LLD_PATH = _REPO_ROOT / "_LLD.md"
+_LLD_PATH = _REPO_ROOT / "outputs" / "_LLD.md"
 
 
 def run(
@@ -344,9 +344,10 @@ def _render_lld_markdown(lld: LLDDocument, work_item_id: str) -> str:
 
 
 def _write_lld_document(lld: LLDDocument, work_item_id: str) -> str:
-    """Overwrite LLD.md at the repo root with the current LLD. Returns the relative path."""
+    """Write _LLD.md to the outputs folder. Returns the repo-relative path."""
+    _LLD_PATH.parent.mkdir(parents=True, exist_ok=True)
     _LLD_PATH.write_text(_render_lld_markdown(lld, work_item_id), encoding="utf-8")
-    return _LLD_PATH.name
+    return str(_LLD_PATH.relative_to(_REPO_ROOT))
 
 
 def _post_lld_comment(lld_path: str, work_item_id: str, ado_client: ADOClient) -> None:

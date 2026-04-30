@@ -20,7 +20,6 @@ _ORIGIN = "origin"
 _UTILS_DIR = Path(__file__).resolve().parent
 _PIPELINE_DIR = _UTILS_DIR.parent
 _REPO_ROOT = _PIPELINE_DIR.parent
-_DEMO_APP_DIR = _REPO_ROOT / "demo-app"
 
 
 def get_repo_root() -> Path:
@@ -62,7 +61,7 @@ def create_feature_branch(work_item_id: str, slug: str) -> str:
     except RuntimeError:
         pass
     try:
-        run_git(["clean", "-fd", "-e", "_LLD.md", "-e", "_TestResults.md"], cwd=repo_root)
+        run_git(["clean", "-fd", "-e", "outputs/"], cwd=repo_root)
     except RuntimeError:
         pass
     run_git(["fetch", _ORIGIN, _MAIN_BRANCH], cwd=repo_root)

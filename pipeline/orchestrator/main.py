@@ -68,7 +68,7 @@ _PIPELINE_HALTED_COMMENT = (
 )
 
 _REPO_ROOT = _PIPELINE_DIR.parent
-_TEST_RESULTS_PATH = _REPO_ROOT / "_TestResults.md"
+_TEST_RESULTS_PATH = _REPO_ROOT / "outputs" / "_TestResults.md"
 
 
 def _write_test_results_doc(result: Any, work_item_id: str) -> str:
@@ -125,8 +125,9 @@ def _write_test_results_doc(result: Any, work_item_id: str) -> str:
     lines.extend(_case_lines(TestStatus.skipped))
     lines.append("")
 
+    _TEST_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
     _TEST_RESULTS_PATH.write_text("\n".join(lines), encoding="utf-8")
-    return _TEST_RESULTS_PATH.name
+    return str(_TEST_RESULTS_PATH.relative_to(_REPO_ROOT))
 
 
 class Orchestrator:

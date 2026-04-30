@@ -160,8 +160,8 @@ runs/*
 !runs/.gitkeep
 
 # Pipeline-generated documents — not committed
-_LLD.md
-_TestResults.md
+outputs/_LLD.md
+outputs/_TestResults.md
 
 # OS
 .DS_Store
