@@ -13,7 +13,7 @@ import {
   LABEL_TASKS_HEADING,
 } from '../utils/strings';
 
-const UPCOMING_TASKS_MAX_HEIGHT = 'max-h-[150px]';
+const UPCOMING_TASKS_MAX_HEIGHT = 'max-h-[200px]';
 
 export function HomePage() {
   const {

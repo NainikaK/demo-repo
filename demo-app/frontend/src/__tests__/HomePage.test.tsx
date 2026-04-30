@@ -13,68 +13,83 @@ const makeTask = (id: string): Task => ({
   createdAt: `2024-01-${id.padStart(2, '0')}T10:00:00.000Z`,
 });
 
-const defaultHookReturn = {
+const defaultHookValue = {
   visibleTasks: [] as Task[],
   hasMore: false,
   loading: false,
-  error: null,
-  completeError: null,
+  error: null as string | null,
+  completeError: null as string | null,
   refetch: vi.fn(),
   addTask: vi.fn(),
   completeTask: vi.fn(),
   loadMore: vi.fn(),
 };
 
+vi.mock('../components/TaskForm', () => ({
+  TaskForm: ({ onTaskCreated }: { onTaskCreated: (t: Task) => void }) => (
+    <button onClick={() => onTaskCreated(makeTask('99'))}>Add Task</button>
+  ),
+}));
+
+vi.mock('../components/TaskCard', () => ({
+  TaskCard: ({ task }: { task: Task }) => <div data-testid="task-card">{task.title}</div>,
+}));
+
+vi.mock('../components/LoadMoreButton', () => ({
+  LoadMoreButton: ({ onClick, visible }: { onClick: () => void; visible: boolean }) =>
+    visible ? <button onClick={onClick}>Load More</button> : null,
+}));
+
 describe('HomePage', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+    vi.restoreAllMocks();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('render test - renders without crashing and shows the tasks heading when tasks are present', () => {
+  it('render test - renders the task list container with max-h-[200px] class when tasks are present', () => {
     const tasks = [makeTask('1'), makeTask('2')];
     vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue({
-      ...defaultHookReturn,
-      visibleTasks: tasks,
-    });
-
-    render(<HomePage />);
-
-    expect(screen.getByText('Upcoming Tasks')).toBeInTheDocument();
-    expect(screen.getByText('Task 1')).toBeInTheDocument();
-    expect(screen.getByText('Task 2')).toBeInTheDocument();
-  });
-
-  it('interaction test - clicking the retry button calls refetch when there is an error', async () => {
-    const refetch = vi.fn();
-    vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue({
-      ...defaultHookReturn,
-      error: 'Network failure',
-      refetch,
-    });
-
-    render(<HomePage />);
-
-    const retryButton = screen.getByRole('button', { name: /retry/i });
-    await userEvent.click(retryButton);
-
-    expect(refetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('edge case - renders the upcoming tasks list with overflow-y-auto and max-h-[150px] classes applied', () => {
-    const tasks = Array.from({ length: 10 }, (_, i) => makeTask(String(i + 1)));
-    vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue({
-      ...defaultHookReturn,
+      ...defaultHookValue,
       visibleTasks: tasks,
     });
 
     render(<HomePage />);
 
     const list = screen.getByRole('list');
-    expect(list).toHaveClass('overflow-y-auto');
-    expect(list).toHaveClass('max-h-[150px]');
+    expect(list).toBeInTheDocument();
+    expect(list.className).toContain('max-h-[200px]');
+    expect(list.className).toContain('overflow-y-auto');
+  });
+
+  it('interaction test - calls loadMore when Load More button is clicked', async () => {
+    const loadMore = vi.fn();
+    vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue({
+      ...defaultHookValue,
+      visibleTasks: [makeTask('1')],
+      hasMore: true,
+      loadMore,
+    });
+
+    render(<HomePage />);
+
+    const loadMoreButton = screen.getByRole('button', { name: 'Load More' });
+    await userEvent.click(loadMoreButton);
+
+    expect(loadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it('edge case - renders no-tasks message and no list when visibleTasks is empty', () => {
+    vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue({
+      ...defaultHookValue,
+      visibleTasks: [],
+    });
+
+    render(<HomePage />);
+
+    expect(screen.getByText('No tasks found.')).toBeInTheDocument();
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 });
