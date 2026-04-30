@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Task } from '../types';
-import { TASKS_URL } from '../utils/constants';
+import { COMPLETE_TASK_URL, TASKS_URL } from '../utils/constants';
 import {
   LABEL_COMPLETE_ERROR,
   LABEL_FETCH_TASKS_ERROR_PREFIX,
   LABEL_UNKNOWN_ERROR,
 } from '../utils/strings';
-
-const COMPLETE_PATCH_BODY = { completed: true };
 
 interface UseTasksResult {
   tasks: Task[];
@@ -54,10 +52,8 @@ export function useTasks(): UseTasksResult {
     );
 
     try {
-      const response = await fetch(`${TASKS_URL}/${id}`, {
+      const response = await fetch(COMPLETE_TASK_URL(id), {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(COMPLETE_PATCH_BODY),
       });
       if (!response.ok) {
         throw new Error(`Request failed with status ${response.status}`);
