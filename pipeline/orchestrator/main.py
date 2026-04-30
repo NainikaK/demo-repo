@@ -99,10 +99,10 @@ class Orchestrator:
     def _poll_once(self) -> None:
         """Fetch eligible work items and start a pipeline run for each new one.
 
-        Also checks any runs paused in PENDING_CLARIFICATION for new human
-        comments, and resumes them if the human has responded.
+        Crash-recovery: any run left in PENDING_CLARIFICATION by a prior process
+        crash is re-entered here; _run_clarification will block until resolved.
         """
-        self._resume_paused_clarifications()
+        self._recover_paused_clarifications()
 
         try:
             items = self.ado_client.get_work_items(state="New", tag=TRIGGER_TAG)
@@ -127,8 +127,13 @@ class Orchestrator:
         processed = len(eligible) - skipped
         print(f"{LOG_PREFIX} poll complete: found={len(eligible)} skipped={skipped} processed={processed}")
 
-    def _resume_paused_clarifications(self) -> None:
-        """Check runs paused for human clarification and resume any that have new comments."""
+    def _recover_paused_clarifications(self) -> None:
+        """Crash-recovery: resume any runs left in PENDING_CLARIFICATION by a prior crash.
+
+        Under normal operation _run_clarification blocks inline and never leaves a
+        run in PENDING_CLARIFICATION while the process is alive.  This method handles
+        the edge case where the process was killed mid-wait.
+        """
         for run_id in self.run_record_manager.list_runs():
             try:
                 run = self.run_record_manager.load(run_id)
@@ -137,50 +142,34 @@ class Orchestrator:
             if run.state != PipelineState.pending_clarification:
                 continue
 
-            try:
-                comments = self.ado_client.get_comments(int(run.work_item_id))
-            except Exception as exc:
-                print(f"{LOG_PREFIX} warning: could not fetch comments for {run.work_item_id} — {exc}")
-                continue
-
-            human_comments = [
-                c for c in comments
-                if not c.get("text", "").startswith("[AI Pipeline]")
-            ]
-            if len(human_comments) <= run.clarification_comment_count:
-                continue
-
-            print(
-                f"{LOG_PREFIX} new human comment on work_item={run.work_item_id} — "
-                f"resuming clarification"
-            )
+            print(f"{LOG_PREFIX} crash-recovery: resuming PENDING_CLARIFICATION run for work_item={run.work_item_id}")
             try:
                 work_item = self.ado_client.get_work_item_by_id(int(run.work_item_id))
             except Exception as exc:
                 print(f"{LOG_PREFIX} warning: could not fetch work item {run.work_item_id} — {exc}")
                 continue
 
-            enriched = self._enrich_description_with_comments(work_item, human_comments)
             steps = self._build_pipeline_steps()
             success = self._execute_agent_phase(
-                run, enriched, "clarification", self._run_clarification,
+                run, work_item, "clarification", self._run_clarification,
                 PipelineState.stories_created, [],
             )
             if not success:
-                self.run_record_manager.save(run)
+                self._handle_pipeline_failure(run, run.work_item_id)
                 continue
 
             for phase_name, agent_fn, target_state in steps[1:]:
                 ok = self._execute_agent_phase(run, work_item, phase_name, agent_fn, target_state, [])
                 if not ok:
                     self._handle_pipeline_failure(run, run.work_item_id)
-                    return
-            print(f"{LOG_PREFIX} work_item={run.work_item_id} pipeline=complete (resumed from clarification pause)")
+                    break
+            else:
+                print(f"{LOG_PREFIX} work_item={run.work_item_id} pipeline=complete (crash-recovery)")
 
     def _enrich_description_with_comments(
         self, work_item: dict[str, Any], human_comments: list[dict[str, Any]]
     ) -> dict[str, Any]:
-        """Return a copy of work_item with human comment text appended to its description."""
+        """Return a shallow copy of work_item with all human comment text appended to the description."""
         comment_block = "\n\n---\nProduct Owner responses:\n" + "\n\n".join(
             c.get("text", "").strip() for c in human_comments if c.get("text", "").strip()
         )
@@ -469,50 +458,105 @@ class Orchestrator:
     # -------------------------------------------------------------------------
 
     def _run_clarification(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
-        """Invoke the Clarification Agent and gate the pipeline on the confidence score.
+        """Invoke the Clarification Agent and block until the score reaches 80.
 
-        Requires a score of 80 or above to proceed. Below 80 the pipeline pauses:
-        questions are posted as an ADO comment, the work item is set to 'Needs Info',
-        and the comment count is recorded so the poll loop can detect when the human
-        has responded and resume automatically.
+        When the initial score is below 80 the method posts the clarifying questions
+        as an ADO comment, sets the work item to 'Needs Info', then enters a blocking
+        poll loop — sleeping POLL_INTERVAL_SECONDS between checks.
+
+        Each time a new human comment is detected the clarification agent is re-run
+        with the original description enriched by all human comment text so far.
+        A follow-up ADO comment is posted with the updated confidence score.  If the
+        score is still below 80 the loop continues; once it reaches 80 the method
+        restores the work item state to 'Active' and returns True so the pipeline
+        continues normally.
+
+        This method NEVER returns False — it only returns True (score reached) or
+        raises on an unrecoverable error, ensuring the retry/escalation logic in
+        _execute_agent_phase is never triggered for a simple clarification pause.
         """
         work_item_id = str(work_item.get("id", "unknown"))
         print(f"{LOG_PREFIX} phase=clarification status=starting work_item={work_item_id}")
 
         result = clarification_agent.run(work_item, self.anthropic_client)
         run.clarification_output = result
-
         score = result.confidence_score
         print(f"{LOG_PREFIX} phase=clarification confidence_score={score}")
 
-        if score < 80:
+        while score < 80:
             questions = result.questions or []
             questions_text = "\n".join(f"{i}. {q}" for i, q in enumerate(questions, 1))
-            comment = (
+            pause_comment = (
                 f"[AI Pipeline] Pipeline paused — confidence score: {score}/100.\n\n"
-                f"Please answer the following questions by **adding a comment** to this work item. "
-                f"The pipeline will resume automatically once your response is detected.\n\n"
+                f"Please answer the following questions by **adding a comment** to this "
+                f"work item. The pipeline will resume automatically once your response "
+                f"is detected.\n\n"
                 f"{questions_text}"
             )
-            self._post_ado_comment(work_item_id, comment)
+            self._post_ado_comment(work_item_id, pause_comment)
             try:
                 self.ado_client.update_work_item(int(work_item_id), {"System.State": "Needs Info"})
             except Exception as exc:
                 print(f"{LOG_PREFIX} warning: could not set ADO state to Needs Info — {exc}")
+
+            # Snapshot human comment count so we detect only NEW comments on the next check.
             try:
                 all_comments = self.ado_client.get_comments(int(work_item_id))
-                human_count = sum(
+                run.clarification_comment_count = sum(
                     1 for c in all_comments
                     if not c.get("text", "").startswith("[AI Pipeline]")
                 )
-                run.clarification_comment_count = human_count
             except Exception as exc:
                 print(f"{LOG_PREFIX} warning: could not snapshot comment count — {exc}")
+            self.run_record_manager.save(run)
+
             print(
-                f"{LOG_PREFIX} phase=clarification PAUSED "
-                f"confidence_score={score} — awaiting human response via ADO comment"
+                f"{LOG_PREFIX} phase=clarification PAUSED score={score} "
+                f"work_item={work_item_id} — blocking until human comment added"
             )
-            return False
+
+            # --- blocking wait loop ---
+            while True:
+                time.sleep(POLL_INTERVAL_SECONDS)
+                try:
+                    all_comments = self.ado_client.get_comments(int(work_item_id))
+                    human_comments = [
+                        c for c in all_comments
+                        if not c.get("text", "").startswith("[AI Pipeline]")
+                    ]
+                except Exception as exc:
+                    print(f"{LOG_PREFIX} warning: comment poll failed — {exc}")
+                    continue
+
+                if len(human_comments) <= run.clarification_comment_count:
+                    print(f"{LOG_PREFIX} phase=clarification still waiting work_item={work_item_id}")
+                    continue
+
+                # New human comment arrived — re-evaluate.
+                print(f"{LOG_PREFIX} phase=clarification new comment detected — re-evaluating work_item={work_item_id}")
+                enriched = self._enrich_description_with_comments(work_item, human_comments)
+                result = clarification_agent.run(enriched, self.anthropic_client)
+                run.clarification_output = result
+                score = result.confidence_score
+
+                if score >= 80:
+                    self._post_ado_comment(
+                        work_item_id,
+                        f"[AI Pipeline] Confidence score updated to {score}/100 — "
+                        f"threshold reached. Pipeline resuming now.",
+                    )
+                    try:
+                        self.ado_client.update_work_item(int(work_item_id), {"System.State": "Active"})
+                    except Exception as exc:
+                        print(f"{LOG_PREFIX} warning: could not restore ADO state — {exc}")
+                else:
+                    self._post_ado_comment(
+                        work_item_id,
+                        f"[AI Pipeline] Confidence score updated to {score}/100 — "
+                        f"still below 80. Asking follow-up questions.",
+                    )
+                print(f"{LOG_PREFIX} phase=clarification re-evaluated score={score} work_item={work_item_id}")
+                break  # Break inner loop; outer while checks score again.
 
         if result.spec and result.spec.gaps:
             print(

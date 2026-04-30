@@ -213,19 +213,18 @@ def _call_claude(
         raise RuntimeError(f"Audit Agent: Claude API call failed — {exc}") from exc
 
     raw_text = _strip_fences(response.content[0].text)
-    if not raw_text.startswith("{"):
+    decoder = json.JSONDecoder()
+    for start_idx in (0, raw_text.find("{")):
+        if start_idx == -1:
+            continue
         try:
-            raw_text = raw_text[raw_text.index("{"):]
-        except ValueError:
+            parsed, _ = decoder.raw_decode(raw_text[start_idx:].lstrip())
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
             pass
-    try:
-        parsed = json.loads(raw_text)
-        if not isinstance(parsed, dict):
-            raise ValueError(f"expected a JSON object, got {type(parsed).__name__}")
-        return parsed
-    except (json.JSONDecodeError, ValueError):
-        print(f"{_LOG_PREFIX} audit response parse failed — retrying with simplified scores-only prompt")
-        return _call_claude_simplified(user_message, anthropic_client)
+    print(f"{_LOG_PREFIX} audit response parse failed — retrying with simplified scores-only prompt")
+    return _call_claude_simplified(user_message, anthropic_client)
 
 
 def _call_claude_simplified(
