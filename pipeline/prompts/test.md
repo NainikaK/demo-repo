@@ -45,7 +45,8 @@ You receive a JSON object with these keys:
 - Use `@testing-library/user-event` for interaction tests.
 - Use `describe` blocks to group tests by component or hook.
 - Test file names must match the source file suffixed with `.test.tsx` or `.test.ts`.
-- **Child component mock / duplicate text rule:** When you mock a child component so it renders prop values as visible text (e.g., `<span data-testid="weather-icon">{condition}</span>`), the mocked element AND the parent component may both render the same text string. NEVER use `getByText(thatString)` in this case — it will fail with "found multiple elements". Instead: use `getByTestId('...')` to locate the mocked child, and use `getAllByText(thatString)` (not `getByText`) when asserting the text appears anywhere. The same rule applies to any mock whose render output duplicates a string the parent also renders.
+- **Child component mock rule — no prop text as children:** When mocking a child component (e.g. WeatherIcon), the mock MUST render an empty placeholder — never render prop values as text children. Correct: `<span data-testid="weather-icon" />`. Wrong: `<span data-testid="weather-icon">{condition}</span>` or `<span role="img" aria-label={condition}>{condition}</span>`. Rendering props as text creates duplicate text nodes — the mock AND the parent both display the same string — causing `getByText` to fail with "found multiple elements". If you must render something for aria accessibility, use `aria-label={condition}` only, with no text children: `<span data-testid="weather-icon" aria-label={condition} />`.
+- **Duplicate text assertion rule:** If for any reason a text string could appear in more than one element (e.g., once in a mock and once in the parent), always use `getAllByText(string)` and assert `length > 0` — never `getByText(string)` which requires exactly one match.
 
 ### Backend Tests — one file per service or controller changed
 
