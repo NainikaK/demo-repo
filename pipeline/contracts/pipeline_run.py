@@ -31,6 +31,7 @@ class PipelineState(str, Enum):
     audit_in_progress = "AUDIT_IN_PROGRESS"
     supervisor_review = "SUPERVISOR_REVIEW"
     auto_merged = "AUTO_MERGED"
+    human_review_pending = "HUMAN_REVIEW_PENDING"
     pipeline_failed = "PIPELINE_FAILED"
 
 

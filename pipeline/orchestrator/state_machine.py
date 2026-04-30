@@ -18,7 +18,7 @@ from contracts.pipeline_run import PipelineRun, PipelineState  # noqa: E402
 
 
 _TERMINAL_STATES: frozenset[PipelineState] = frozenset(
-    {PipelineState.auto_merged, PipelineState.pipeline_failed}
+    {PipelineState.auto_merged, PipelineState.human_review_pending, PipelineState.pipeline_failed}
 )
 
 # Maps every state to the set of states it may legally transition into.
@@ -54,9 +54,11 @@ VALID_TRANSITIONS: dict[PipelineState, list[PipelineState]] = {
     ],
     PipelineState.supervisor_review: [
         PipelineState.auto_merged,
+        PipelineState.human_review_pending,
         PipelineState.pipeline_failed,
     ],
     PipelineState.auto_merged: [],
+    PipelineState.human_review_pending: [],
     PipelineState.pipeline_failed: [],
 }
 

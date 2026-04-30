@@ -79,16 +79,27 @@ def run(
 
     repo_root = git_utils.get_repo_root()
     frontend_test_dir = repo_root / _FRONTEND_TEST_DIR
+
+    # Only delete tests for source files touched by this feature — not unrelated tests.
+    changed_stems = {
+        Path(p).stem
+        for p in frontend_summary.files_created + frontend_summary.files_modified
+    }
+
     deleted_test_files: list[str] = []
     if frontend_test_dir.exists():
         for test_file in sorted(frontend_test_dir.rglob("*")):
-            if test_file.is_file() and (
-                test_file.name.endswith(".test.tsx") or test_file.name.endswith(".test.ts")
-            ):
-                rel = str(test_file.relative_to(repo_root))
-                test_file.unlink()
-                deleted_test_files.append(rel)
-                print(f"{_LOG_PREFIX} deleted stale frontend test: {test_file.name}")
+            if not test_file.is_file():
+                continue
+            if not (test_file.name.endswith(".test.tsx") or test_file.name.endswith(".test.ts")):
+                continue
+            test_stem = test_file.name.replace(".test.tsx", "").replace(".test.ts", "")
+            if test_stem not in changed_stems:
+                continue
+            rel = str(test_file.relative_to(repo_root))
+            test_file.unlink()
+            deleted_test_files.append(rel)
+            print(f"{_LOG_PREFIX} deleted stale frontend test: {test_file.name}")
 
     print(f"{_LOG_PREFIX} reading existing test files")
     existing_tests = _read_existing_tests()

@@ -171,7 +171,7 @@ class Orchestrator:
             ("backend_agent",   self._run_backend_agent,  PipelineState.testing_in_progress),
             ("test_agent",      self._run_test_agent,     PipelineState.audit_in_progress),
             ("audit_agent",     self._run_audit_agent,    PipelineState.supervisor_review),
-            ("supervisor",      self._run_supervisor,     PipelineState.auto_merged),
+            ("supervisor",      self._run_supervisor,     None),
         ]
 
     def _handle_pipeline_failure(self, run: PipelineRun, work_item_id: str) -> None:
@@ -712,10 +712,15 @@ class Orchestrator:
         )
 
         if decision.merged:
+            target = PipelineState.auto_merged
             try:
                 self.ado_client.update_work_item(int(work_item_id), {"System.State": "Resolved"})
             except Exception as exc:
                 print(f"{LOG_PREFIX} warning: could not set ADO state to Resolved — {exc}")
+        else:
+            target = PipelineState.human_review_pending
+
+        self.state_machine.transition(run, target)
 
         print(
             f"{LOG_PREFIX} phase=supervisor "
