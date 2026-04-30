@@ -53,6 +53,7 @@ these standards:
 10. State shared across more than two components must use Context or a state manager
 11. All backend API URL constants must use the versioned prefix /api/v1/ — never /api/ without the version segment (e.g. /api/tasks is wrong; /api/v1/tasks is correct)
 12. Every named import must exist as an export in the file it is imported from — cross-reference every import { X } from '...' against the files_to_review to verify X is actually exported. A mismatched import name (e.g. importing TASK_COMPLETE_URL when the file exports COMPLETE_TASK_URL) is a violation.
+13. Any fetch call that marks a task complete must use COMPLETE_TASK_URL(id) — never construct the URL by concatenating TASKS_URL + '/' + id with a PATCH method, as that hits the wrong endpoint. The correct endpoint is /api/v1/tasks/{id}/complete.
 
 For each violation, describe it precisely: file, construct, standard violated.
 
