@@ -9,6 +9,7 @@ Exceptions propagate so the Orchestrator's retry loop can catch them.
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,7 @@ _LOG_PREFIX = "[spec_agent]"
 _CODE_EXTENSIONS: frozenset[str] = frozenset({".tsx", ".ts", ".cs"})
 _SKIP_DIRS: frozenset[str] = frozenset({"node_modules", "bin", "obj", "dist", ".git"})
 _MAX_CONTENT_LINES: int = 50
+_LLD_PATH = _REPO_ROOT / "LLD.md"
 
 
 def run(
@@ -71,12 +73,14 @@ def run(
     raw = _call_claude(system_prompt, user_message, anthropic_client)
 
     lld = _build_lld_document(raw, work_item_id)
-    _post_lld_comment(_build_ado_comment(lld), work_item_id, ado_client)
+    lld_path = _write_lld_document(lld, work_item_id)
+    _post_lld_comment(lld_path, work_item_id, ado_client)
 
     print(
         f"{_LOG_PREFIX} LLD complete "
         f"files_to_create={len(lld.files_to_create)} "
-        f"files_to_modify={len(lld.files_to_modify)}"
+        f"files_to_modify={len(lld.files_to_modify)} "
+        f"document={lld_path}"
     )
     return lld
 
@@ -246,42 +250,111 @@ def _build_lld_document(raw: dict[str, Any], work_item_id: str) -> LLDDocument:
         ) from exc
 
 
-def _build_ado_comment(lld: LLDDocument) -> str:
-    """Format the LLD as a human-readable ADO comment."""
+def _render_lld_markdown(lld: LLDDocument, work_item_id: str) -> str:
+    """Render the LLD document as rich Markdown."""
     fe = lld.frontend_changes
     be = lld.backend_changes
-    endpoint_lines = [f"  {ep.method} {ep.path}" for ep in be.endpoints] or ["  (none)"]
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
     lines = [
-        "[AI Pipeline] Low Level Design produced.",
+        f"# Low Level Design — Work Item {work_item_id}",
+        "",
+        f"_Generated: {ts}_",
+        "",
+        "---",
         "",
         "## Frontend Changes",
-        f"Components to create: {', '.join(fe.components_to_create) or 'none'}",
-        f"Components to modify: {', '.join(fe.components_to_modify) or 'none'}",
-        f"Hooks: {', '.join(fe.hooks) or 'none'}",
-        f"State changes: {', '.join(fe.state_changes) or 'none'}",
         "",
-        "## Backend Endpoints",
-        *endpoint_lines,
-        f"Services: {', '.join(be.services) or 'none'}",
+        f"**Components to create:** {', '.join(fe.components_to_create) or 'none'}",
         "",
-        "## Files to Create",
-        *([f"  + {f}" for f in lld.files_to_create] or ["  (none)"]),
-        "## Files to Modify",
-        *([f"  ~ {f}" for f in lld.files_to_modify] or ["  (none)"]),
+        f"**Components to modify:** {', '.join(fe.components_to_modify) or 'none'}",
+        "",
+        f"**Hooks:** {', '.join(fe.hooks) or 'none'}",
+        "",
+        f"**State changes:** {', '.join(fe.state_changes) or 'none'}",
+        "",
+        f"**Props interfaces:** {', '.join(fe.props_interfaces) or 'none'}",
+        "",
+        "---",
+        "",
+        "## Backend Changes",
+        "",
+        "### Endpoints",
+        "",
+    ]
+
+    if be.endpoints:
+        for ep in be.endpoints:
+            lines.append(f"- `{ep.method} {ep.path}`")
+            if ep.request_body:
+                lines.append(f"  - Request: `{json.dumps(ep.request_body)}`")
+            if ep.response_body:
+                lines.append(f"  - Response: `{json.dumps(ep.response_body)}`")
+    else:
+        lines.append("_(none)_")
+
+    lines += [
+        "",
+        f"**Services:** {', '.join(be.services) or 'none'}",
+        "",
+        f"**Data models:** {', '.join(be.data_models) or 'none'}",
+        "",
+        f"**DTO changes:** {', '.join(be.dto_changes) or 'none'}",
+        "",
+        "---",
+        "",
+        "## Files",
+        "",
+        "### Files to Create",
+        "",
+    ]
+
+    if lld.files_to_create:
+        lines.extend(f"- `{f}`" for f in lld.files_to_create)
+    else:
+        lines.append("_(none)_")
+
+    lines += [
+        "",
+        "### Files to Modify",
+        "",
+    ]
+
+    if lld.files_to_modify:
+        lines.extend(f"- `{f}`" for f in lld.files_to_modify)
+    else:
+        lines.append("_(none)_")
+
+    lines += [
+        "",
+        "---",
         "",
         "## New Dependencies",
+        "",
     ]
+
     if lld.new_dependencies.frontend:
-        lines.append(f"Frontend (npm): {', '.join(lld.new_dependencies.frontend)}")
+        lines.append(f"**Frontend (npm):** {', '.join(lld.new_dependencies.frontend)}")
     if lld.new_dependencies.backend:
-        lines.append(f"Backend (NuGet): {', '.join(lld.new_dependencies.backend)}")
+        lines.append(f"**Backend (NuGet):** {', '.join(lld.new_dependencies.backend)}")
     if not lld.new_dependencies.frontend and not lld.new_dependencies.backend:
-        lines.append("None")
-    return "\n".join(lines)
+        lines.append("_(none)_")
+
+    return "\n".join(lines) + "\n"
 
 
-def _post_lld_comment(comment: str, work_item_id: str, ado_client: ADOClient) -> None:
-    """Post the LLD summary comment to the ADO work item. Logs warnings, never raises."""
+def _write_lld_document(lld: LLDDocument, work_item_id: str) -> str:
+    """Overwrite LLD.md at the repo root with the current LLD. Returns the relative path."""
+    _LLD_PATH.write_text(_render_lld_markdown(lld, work_item_id), encoding="utf-8")
+    return _LLD_PATH.name
+
+
+def _post_lld_comment(lld_path: str, work_item_id: str, ado_client: ADOClient) -> None:
+    """Post a brief LLD completion notice to the ADO work item. Logs warnings, never raises."""
+    comment = (
+        f"[AI Pipeline] <strong>Low Level Design Complete</strong><br><br>"
+        f"<strong>Document:</strong> <code>{lld_path}</code>"
+    )
     try:
         ado_client.add_comment(int(work_item_id), comment)
     except ADOClientError as exc:

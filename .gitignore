@@ -159,6 +159,10 @@ TestResults/
 runs/*
 !runs/.gitkeep
 
+# LLD output documents — keep the placeholder, ignore generated files
+output/lld/*
+!output/lld/.gitkeep
+
 # OS
 .DS_Store
 Thumbs.db

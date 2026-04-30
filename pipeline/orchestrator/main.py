@@ -56,8 +56,15 @@ AGENT_TIMEOUT_SECONDS: int = 600
 RETRY_WAIT_SECONDS: int = 30
 LOG_PREFIX: str = "[orchestrator]"
 
-_PIPELINE_STARTED_COMMENT = "[AI Pipeline] Pipeline started. Run ID: {run_id}"
-_PIPELINE_HALTED_COMMENT = "[AI Pipeline] Pipeline halted after all retries failed. Run ID: {run_id}"
+_PIPELINE_STARTED_COMMENT = (
+    "[AI Pipeline] <strong>Pipeline Started</strong><br><br>"
+    "<strong>Run ID:</strong> {run_id}"
+)
+_PIPELINE_HALTED_COMMENT = (
+    "[AI Pipeline] <strong>Pipeline Halted</strong><br><br>"
+    "All retries failed — human intervention required.<br>"
+    "<strong>Run ID:</strong> {run_id}"
+)
 
 
 class Orchestrator:
@@ -431,20 +438,25 @@ class Orchestrator:
         diagnoses: list[DiagnosisResult],
     ) -> str:
         """Assemble the full diagnostic report string for the ADO escalation comment."""
-        lines = [
-            "[AI Pipeline] Human attention required.",
-            f"Phase: {phase_name}",
-            f"Total attempts: {len(errors)}",
-        ]
-        for i, error in enumerate(errors, start=1):
-            lines.append(f"\nAttempt {i} error:\n  {error}")
-        for i, diagnosis in enumerate(diagnoses, start=1):
-            lines.append(
-                f"\nDiagnosis {i}:\n"
-                f"  Root cause: {diagnosis.root_cause}\n"
-                f"  Suggested fix: {diagnosis.suggested_fix}"
-            )
-        return "\n".join(lines)
+        attempt_items = "".join(
+            f"<li><strong>Attempt {i}:</strong> {err}</li>"
+            for i, err in enumerate(errors, start=1)
+        ) or "<li>No error details available.</li>"
+
+        diagnosis_items = "".join(
+            f"<li><strong>Diagnosis {i}:</strong><br>"
+            f"Root cause: {d.root_cause}<br>"
+            f"Suggested fix: {d.suggested_fix}</li>"
+            for i, d in enumerate(diagnoses, start=1)
+        ) or "<li>No diagnosis available.</li>"
+
+        return (
+            f"[AI Pipeline] <strong>Human Attention Required</strong><br><br>"
+            f"<strong>Phase:</strong> {phase_name}<br>"
+            f"<strong>Total attempts:</strong> {len(errors)}<br><br>"
+            f"<strong>Errors:</strong><br><ul>{attempt_items}</ul>"
+            f"<strong>Diagnoses:</strong><br><ul>{diagnosis_items}</ul>"
+        )
 
     def _post_ado_comment(self, work_item_id: str, message: str) -> None:
         """Post a comment to an ADO work item. Logs a warning on failure, never raises."""
@@ -483,15 +495,17 @@ class Orchestrator:
         score = result.confidence_score
         print(f"{LOG_PREFIX} phase=clarification confidence_score={score}")
 
+        _paused = score < 80
         while score < 80:
             questions = result.questions or []
-            questions_text = "\n".join(f"{i}. {q}" for i, q in enumerate(questions, 1))
+            q_items = "".join(f"<li>{q}</li>" for q in questions) or "<li>(no questions provided)</li>"
             pause_comment = (
-                f"[AI Pipeline] Pipeline paused — confidence score: {score}/100.\n\n"
-                f"Please answer the following questions by **adding a comment** to this "
-                f"work item. The pipeline will resume automatically once your response "
-                f"is detected.\n\n"
-                f"{questions_text}"
+                f"[AI Pipeline] <strong>Pipeline Paused — Clarification Required</strong><br><br>"
+                f"<strong>Confidence Score:</strong> {score}/100<br><br>"
+                f"Please answer the following questions by <strong>adding a comment</strong> to this "
+                f"work item. The pipeline will resume automatically once your response is detected.<br><br>"
+                f"<strong>Questions:</strong><br>"
+                f"<ul>{q_items}</ul>"
             )
             self._post_ado_comment(work_item_id, pause_comment)
             try:
@@ -542,8 +556,9 @@ class Orchestrator:
                 if score >= 80:
                     self._post_ado_comment(
                         work_item_id,
-                        f"[AI Pipeline] Confidence score updated to {score}/100 — "
-                        f"threshold reached. Pipeline resuming now.",
+                        f"[AI Pipeline] <strong>Confidence Score Updated — Threshold Reached</strong><br><br>"
+                        f"<strong>Score:</strong> {score}/100 &nbsp;✓<br>"
+                        f"Pipeline is resuming now.",
                     )
                     try:
                         self.ado_client.update_work_item(int(work_item_id), {"System.State": "Active"})
@@ -552,11 +567,19 @@ class Orchestrator:
                 else:
                     self._post_ado_comment(
                         work_item_id,
-                        f"[AI Pipeline] Confidence score updated to {score}/100 — "
-                        f"still below 80. Asking follow-up questions.",
+                        f"[AI Pipeline] <strong>Confidence Score Updated — Still Below Threshold</strong><br><br>"
+                        f"<strong>Score:</strong> {score}/100 (minimum: 80)<br>"
+                        f"Posting follow-up questions above.",
                     )
                 print(f"{LOG_PREFIX} phase=clarification re-evaluated score={score} work_item={work_item_id}")
                 break  # Break inner loop; outer while checks score again.
+
+        if not _paused:
+            self._post_ado_comment(
+                work_item_id,
+                f"[AI Pipeline] <strong>Clarification Complete</strong><br><br>"
+                f"<strong>Confidence Score:</strong> {score}/100",
+            )
 
         if result.spec and result.spec.gaps:
             print(
@@ -694,6 +717,8 @@ class Orchestrator:
 
     def _run_test_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
         """Run the Test Agent: generate and execute tests, store results."""
+        work_item_id = str(work_item.get("id", "unknown"))
+
         if run.frontend_summary is None:
             raise RuntimeError("Test Agent: frontend_summary is missing from pipeline run")
         if run.backend_summary is None:
@@ -711,6 +736,35 @@ class Orchestrator:
             self.anthropic_client,
         )
         run.test_results = result
+
+        coverage = result.coverage.line_coverage_percent if result.coverage else 0.0
+        status_label = "PASS" if result.failed == 0 else "FAIL"
+
+        def _test_items(status_value: str) -> str:
+            cases = [tc for tc in result.test_cases if tc.status.value == status_value]
+            if not cases:
+                return "<li><em>none</em></li>"
+            lines = []
+            for tc in cases:
+                label = tc.name.replace("_", " ")
+                if tc.error_message:
+                    lines.append(f"<li>{label} &mdash; <em>{tc.error_message[:120]}</em></li>")
+                else:
+                    lines.append(f"<li>{label}</li>")
+            return "".join(lines)
+
+        comment = (
+            f"[AI Pipeline] <strong>Tests Complete &mdash; {status_label}</strong><br><br>"
+            f"<strong>Total:</strong> {result.total_tests} &nbsp;|&nbsp; "
+            f"<strong>Passed:</strong> {result.passed} &nbsp;|&nbsp; "
+            f"<strong>Failed:</strong> {result.failed} &nbsp;|&nbsp; "
+            f"<strong>Skipped:</strong> {result.skipped} &nbsp;|&nbsp; "
+            f"<strong>Coverage:</strong> {coverage:.1f}%<br><br>"
+            f"<strong>Passed Tests:</strong><br><ul>{_test_items('passed')}</ul>"
+            f"<strong>Failed Tests:</strong><br><ul>{_test_items('failed')}</ul>"
+            f"<strong>Skipped Tests:</strong><br><ul>{_test_items('skipped')}</ul>"
+        )
+        self._post_ado_comment(work_item_id, comment)
 
         print(
             f"{LOG_PREFIX} phase=test_agent "
@@ -757,31 +811,31 @@ class Orchestrator:
             + cats.performance.findings
             + cats.documentation.findings
         )
-        findings_lines = [f"- {f.description}" for f in all_findings[:10]]
-        blocking_lines = (
-            [f"- {f.description}" for f in report.blocking_findings]
-            if report.blocking_findings else ["- none"]
+        findings_items = "".join(
+            f"<li>{f.description}</li>" for f in all_findings[:10]
+        ) or "<li>none</li>"
+        blocking_items = "".join(
+            f"<li>{f.description}</li>" for f in report.blocking_findings
+        ) if report.blocking_findings else "<li>none</li>"
+
+        audit_comment = (
+            f"[AI Pipeline] <strong>Audit Report</strong><br><br>"
+            f"<strong>Composite Score:</strong> {report.composite_score}/10.0 &nbsp;|&nbsp; "
+            f"<strong>Recommendation:</strong> {report.merge_recommendation.value}<br><br>"
+            f"<strong>Category Scores:</strong><br>"
+            f"<ul>"
+            f"<li><strong>Code Correctness:</strong> {cats.code_correctness.score}/{cats.code_correctness.max_score}</li>"
+            f"<li><strong>Standards Compliance:</strong> {cats.standards_compliance.score}/{cats.standards_compliance.max_score}</li>"
+            f"<li><strong>Test Coverage:</strong> {cats.test_coverage.score}/{cats.test_coverage.max_score}</li>"
+            f"<li><strong>Security:</strong> {cats.security.score}/{cats.security.max_score}</li>"
+            f"<li><strong>Spec Adherence:</strong> {cats.spec_adherence.score}/{cats.spec_adherence.max_score}</li>"
+            f"<li><strong>Performance:</strong> {cats.performance.score}/{cats.performance.max_score}</li>"
+            f"<li><strong>Documentation:</strong> {cats.documentation.score}/{cats.documentation.max_score}</li>"
+            f"</ul>"
+            f"<strong>Findings:</strong><br><ul>{findings_items}</ul>"
+            f"<strong>Blocking Findings:</strong><br><ul>{blocking_items}</ul>"
         )
-        comment_lines = [
-            "[AI Pipeline] Audit Report",
-            f"Composite Score: {report.composite_score}/10.0 | Recommendation: {report.merge_recommendation.value}",
-            "",
-            "Category Scores:",
-            f"- Code Correctness: {cats.code_correctness.score}/{cats.code_correctness.max_score}",
-            f"- Standards Compliance: {cats.standards_compliance.score}/{cats.standards_compliance.max_score}",
-            f"- Test Coverage: {cats.test_coverage.score}/{cats.test_coverage.max_score}",
-            f"- Security: {cats.security.score}/{cats.security.max_score}",
-            f"- Spec Adherence: {cats.spec_adherence.score}/{cats.spec_adherence.max_score}",
-            f"- Performance: {cats.performance.score}/{cats.performance.max_score}",
-            f"- Documentation: {cats.documentation.score}/{cats.documentation.max_score}",
-            "",
-            "Findings:",
-            *(findings_lines if findings_lines else ["- none"]),
-            "",
-            "Blocking Findings:",
-            *blocking_lines,
-        ]
-        self._post_ado_comment(work_item_id, "\n".join(comment_lines))
+        self._post_ado_comment(work_item_id, audit_comment)
 
         print(
             f"{LOG_PREFIX} phase=audit_agent "
@@ -820,16 +874,20 @@ class Orchestrator:
             print(f"{LOG_PREFIX} phase=supervisor recommendation=reject — {exc}")
             self._post_ado_comment(
                 work_item_id,
-                f"[AI Pipeline] Supervisor: pipeline did not merge.\n{exc}",
+                f"[AI Pipeline] <strong>Pipeline Did Not Merge</strong><br><br>"
+                f"<strong>Reason:</strong> {exc}",
             )
             return True
 
         run.github_pr_url = decision.pr_url
 
+        merged_label = "Yes" if decision.merged else "No"
         self._post_ado_comment(
             work_item_id,
-            f"[AI Pipeline] Pipeline complete. "
-            f"PR: {decision.pr_url} | Merged: {decision.merged} | Decision: {decision.decision}",
+            f"[AI Pipeline] <strong>Pipeline Complete</strong><br><br>"
+            f"<strong>PR:</strong> <a href=\"{decision.pr_url}\">{decision.pr_url}</a><br>"
+            f"<strong>Merged:</strong> {merged_label}<br>"
+            f"<strong>Decision:</strong> {decision.decision}",
         )
 
         if decision.merged:
