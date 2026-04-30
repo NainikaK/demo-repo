@@ -10,6 +10,7 @@ Exceptions propagate so the Orchestrator's retry loop can catch them.
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,7 @@ from contracts.audit_report import AuditReport, MergeRecommendation  # noqa: E40
 from contracts.change_summary import ChangeSummary  # noqa: E402
 from contracts.structured_spec import StructuredSpec  # noqa: E402
 from contracts.test_results import TestResults  # noqa: E402
+import git_utils  # noqa: E402
 
 _MODEL = "claude-sonnet-4-6"
 _GITHUB_REPO: str = os.environ.get("GITHUB_REPO", "")
@@ -84,8 +86,16 @@ def run(
     pr = _create_github_pr(pr_title, pr_description, branch_name, draft=is_draft)
 
     if audit_report.merge_recommendation == MergeRecommendation.approve:
+        print(f"{_LOG_PREFIX} rebasing {branch_name!r} onto {_BASE_BRANCH} before merge")
+        try:
+            git_utils.rebase_onto_main(branch_name)
+        except RuntimeError as exc:
+            raise RuntimeError(
+                f"Supervisor Agent: pre-merge rebase failed — {exc}"
+            ) from exc
+
         print(f"{_LOG_PREFIX} auto-merging PR #{pr.number}")
-        pr.merge(merge_method="squash", commit_title=pr.title, commit_message=pr_description)
+        _merge_with_retry(pr, pr_description)
         print(f"{_LOG_PREFIX} merged PR #{pr.number} url={pr.html_url}")
         return SupervisorDecision(
             pr_url=pr.html_url,
@@ -103,6 +113,30 @@ def run(
         merge_method="draft",
         decision="human_review",
     )
+
+
+def _merge_with_retry(pr: Any, description: str, *, attempts: int = 3, delay: float = 5.0) -> None:
+    """Attempt to squash-merge a PR, retrying if GitHub hasn't yet updated its conflict state.
+
+    After a force-push GitHub may still report the PR as conflicted for a few seconds.
+    This retries up to *attempts* times with *delay* seconds between tries.
+
+    Raises:
+        RuntimeError: If every attempt fails.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            pr.merge(merge_method="squash", commit_title=pr.title, commit_message=description)
+            return
+        except Exception as exc:
+            last_exc = exc
+            if attempt < attempts:
+                print(f"{_LOG_PREFIX} merge attempt {attempt} failed — retrying in {delay}s ({exc})")
+                time.sleep(delay)
+    raise RuntimeError(
+        f"Supervisor Agent: PR merge failed after {attempts} attempt(s) — {last_exc}"
+    ) from last_exc
 
 
 def _build_pr_payload(

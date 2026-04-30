@@ -204,6 +204,37 @@ def get_file_diff(branch_name: str) -> str:
     )
 
 
+def rebase_onto_main(branch_name: str) -> None:
+    """Rebase a feature branch onto the latest origin/main and force-push it.
+
+    Fetches the latest main from origin first so the rebase target is current.
+    Aborts the rebase automatically if conflicts prevent it from completing, then
+    raises a descriptive RuntimeError so the caller can surface the problem.
+
+    Args:
+        branch_name: The feature branch to rebase.
+
+    Raises:
+        RuntimeError: If the fetch, rebase, or force-push fails.
+    """
+    repo_root = get_repo_root()
+    run_git(["fetch", _ORIGIN, _MAIN_BRANCH], cwd=repo_root)
+    run_git(["checkout", branch_name], cwd=repo_root)
+    try:
+        run_git(["rebase", f"{_ORIGIN}/{_MAIN_BRANCH}"], cwd=repo_root)
+    except RuntimeError as exc:
+        try:
+            run_git(["rebase", "--abort"], cwd=repo_root)
+        except RuntimeError:
+            pass
+        raise RuntimeError(
+            f"git_utils: rebase of {branch_name!r} onto {_MAIN_BRANCH} failed — "
+            f"manual conflict resolution required. {exc}"
+        ) from exc
+    run_git(["push", "--force-with-lease", _ORIGIN, branch_name], cwd=repo_root)
+    print(f"{_LOG_PREFIX} rebased {branch_name!r} onto {_ORIGIN}/{_MAIN_BRANCH} and force-pushed")
+
+
 def revert_to_main() -> None:
     """Check out main and discard all uncommitted changes.
 
@@ -263,6 +294,7 @@ __all__: list[Any] = [
     "get_current_branch",
     "checkout_branch",
     "get_file_diff",
+    "rebase_onto_main",
     "revert_to_main",
     "run_git",
 ]
