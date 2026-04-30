@@ -142,6 +142,12 @@ def commit_changes(files: list[str], message: str) -> str:
         raise RuntimeError("git_utils: commit_changes called with an empty file list")
     repo_root = get_repo_root()
     run_git(["add", "--", *files], cwd=repo_root)
+    # Check whether the stage actually has changes — git commit exits 1 with no diff.
+    diff_output = run_git(["diff", "--cached", "--name-only"], cwd=repo_root).strip()
+    if not diff_output:
+        sha = run_git(["rev-parse", "HEAD"], cwd=repo_root).strip()
+        print(f"{_LOG_PREFIX} nothing to commit — files unchanged sha={sha[:8]}")
+        return sha
     run_git(["commit", "-m", message], cwd=repo_root)
     sha = run_git(["rev-parse", "HEAD"], cwd=repo_root).strip()
     print(f"{_LOG_PREFIX} committed {len(files)} file(s) sha={sha[:8]}")

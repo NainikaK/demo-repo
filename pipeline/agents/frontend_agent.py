@@ -51,6 +51,7 @@ these standards:
 8. No magic strings — use named constants
 9. All user-facing strings must be externalized (not literal text inside JSX logic)
 10. State shared across more than two components must use Context or a state manager
+11. All backend API URL constants must use the versioned prefix /api/v1/ — never /api/ without the version segment (e.g. /api/tasks is wrong; /api/v1/tasks is correct)
 
 For each violation, describe it precisely: file, construct, standard violated.
 

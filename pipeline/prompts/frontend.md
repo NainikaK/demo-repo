@@ -49,6 +49,7 @@ You receive a JSON object with these keys:
 - All interactive elements (`button`, `input`, `a`, etc.) must have `aria-label` or visible label text
 - TypeScript strict mode: no `any` types without an explicit inline justification comment
 - Import only what you use from any library — `import debounce from 'lodash/debounce'` not `import _ from 'lodash'`
+- **All backend API URLs must use the versioned prefix `/api/v1/`.** Never write `/api/tasks`, `/api/users`, etc. — always `/api/v1/tasks`, `/api/v1/users`, etc. Derive the exact path from the `backend_lld.endpoints` in your input.
 
 ## Boundary Rule
 
