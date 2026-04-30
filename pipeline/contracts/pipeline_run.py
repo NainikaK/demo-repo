@@ -159,6 +159,13 @@ class PipelineRun(BaseModel):
         default=None,
         description="Full diagnostic report posted to ADO when needs_attention is True.",
     )
+    clarification_comment_count: int = Field(
+        default=0,
+        description=(
+            "Total number of ADO comments on the work item at the moment clarification was paused. "
+            "Used by the poll loop to detect new human comments that should trigger a re-run."
+        ),
+    )
 
 
 __all__: list[Any] = ["PipelineState", "AgentRunRecord", "PipelineRun"]

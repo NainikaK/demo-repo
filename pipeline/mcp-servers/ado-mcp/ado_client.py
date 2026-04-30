@@ -193,6 +193,30 @@ class ADOClient:
         self._raise_for_error(response, f"Failed to create work item of type '{item_type}'")
         return response.json()
 
+    def get_comments(self, item_id: int) -> list[dict[str, Any]]:
+        """Return all comments on a work item, ordered oldest-first.
+
+        Args:
+            item_id: The ADO work item ID to fetch comments for.
+
+        Returns:
+            List of comment dicts. Each dict contains at least ``text`` and
+            ``createdDate``. Returns an empty list if the work item has no
+            comments.
+
+        Raises:
+            ADOClientError: If the request fails.
+        """
+        url = self._at_project(_ENDPOINT_WORK_ITEMS, str(item_id), _SEGMENT_COMMENTS)
+        response = requests.get(
+            url,
+            headers=self._auth_headers,
+            params={"api-version": _API_VERSION_COMMENTS},
+            timeout=_REQUEST_TIMEOUT,
+        )
+        self._raise_for_error(response, f"Failed to fetch comments for work item {item_id}")
+        return response.json().get("comments", [])
+
     def add_comment(self, item_id: int, comment_text: str) -> dict[str, Any]:
         """Post a comment to a work item.
 
