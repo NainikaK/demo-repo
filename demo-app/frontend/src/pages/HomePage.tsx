@@ -13,6 +13,8 @@ import {
   LABEL_TASKS_HEADING,
 } from '../utils/strings';
 
+const UPCOMING_TASKS_MAX_HEIGHT = 'max-h-[150px]';
+
 export function HomePage() {
   const {
     visibleTasks,
@@ -70,7 +72,7 @@ export function HomePage() {
       {visibleTasks.length === 0 ? (
         <p className="text-gray-500 dark:text-gray-400">{LABEL_NO_TASKS}</p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className={`flex flex-col gap-3 overflow-y-auto ${UPCOMING_TASKS_MAX_HEIGHT}`}>
           {visibleTasks.map((task) => (
             <li key={task.id}>
               <TaskCard task={task} onComplete={completeTask} />
