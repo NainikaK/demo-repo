@@ -927,6 +927,8 @@ class Orchestrator:
                 f"[AI Pipeline] <strong>Pipeline Did Not Merge</strong><br><br>"
                 f"<strong>Reason:</strong> {exc}",
             )
+            self.state_machine.transition(run, PipelineState.pipeline_failed)
+            self.run_record_manager.save(run)
             return True
 
         run.github_pr_url = decision.pr_url

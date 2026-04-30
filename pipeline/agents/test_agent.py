@@ -146,7 +146,7 @@ Common issues to check first:
 - Wrong import names: verify every import against the actual exports in source_files.
 - Constants that are functions: if source_files shows \
   `export const FOO = (id: string) => ...` then FOO is a function, not a string. \
-  Mock it with `vi.mock('../utils/constants', () => ({ FOO: vi.fn((id) => \`/api/v1/items/\${id}\`) }))`.
+  Mock it with vi.mock('../utils/constants', () => ({ FOO: vi.fn((id) => `/api/v1/items/${id}`) })).
 - State type mismatch: if a hook exports `completing: boolean`, tests must not treat it as a Set.
 - Wrong expected error message: match the exact string from the source file.
 - String case: match the EXACT capitalisation of strings from source_files \
