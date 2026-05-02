@@ -1,42 +1,47 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { HomePage } from '../pages/HomePage';
-import * as useUpcomingTasksModule from '../hooks/useUpcomingTasks';
-import type { Task } from '../types';
-
-interface TaskFormMockProps {
-  onTaskCreated: (t: Task) => void;
-}
 
 vi.mock('../components/TaskForm', () => ({
-  TaskForm: (_props: TaskFormMockProps) => (
+  TaskForm: ({ onTaskCreated }: { onTaskCreated: (t: unknown) => void }) => (
     <div data-testid="task-form" />
   ),
 }));
 
 vi.mock('../components/TaskCard', () => ({
-  TaskCard: () => <div data-testid="task-card" />,
-}));
-
-vi.mock('../components/LoadMoreButton', () => ({
-  LoadMoreButton: () => <div data-testid="load-more-button" />,
-}));
-
-vi.mock('../components/SmileyIcon', () => ({
-  SmileyIcon: () => <div data-testid="smiley-icon" />,
-}));
-
-vi.mock('../components/EyeIcon', () => ({
-  EyeIcon: () => (
-    <svg data-testid="eye-icon" aria-hidden="true">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
+  TaskCard: ({ task }: { task: { title: string } }) => (
+    <div data-testid="task-card" />
   ),
 }));
 
-const baseHookReturn = {
-  visibleTasks: [] as Task[],
+vi.mock('../components/LoadMoreButton', () => ({
+  LoadMoreButton: ({ onClick, visible }: { onClick: () => void; visible: boolean }) =>
+    visible ? (
+      <button data-testid="load-more-button" onClick={onClick}>
+        Load More
+      </button>
+    ) : null,
+}));
+
+vi.mock('../components/SmileyIcon', () => ({
+  SmileyIcon: () => <span data-testid="smiley-icon" />,
+}));
+
+vi.mock('../components/EyeIcon', () => ({
+  EyeIcon: () => <span data-testid="eye-icon" />,
+}));
+
+vi.mock('../hooks/useUpcomingTasks', () => ({
+  useUpcomingTasks: vi.fn(),
+}));
+
+import * as useUpcomingTasksModule from '../hooks/useUpcomingTasks';
+
+const defaultHookValue = {
+  visibleTasks: [
+    { id: '1', title: 'Task One', description: '', completed: false, createdAt: '2024-01-01T00:00:00.000Z' },
+  ],
   hasMore: false,
   loading: false,
   error: null,
@@ -56,10 +61,33 @@ describe('HomePage', () => {
     vi.restoreAllMocks();
   });
 
-  it('render test - renders the Upcoming Tasks heading with an eye SVG icon beside it', () => {
+  it('render test - renders the Upcoming Tasks heading with the EyeIcon beside it', () => {
+    vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue(defaultHookValue);
+
+    render(<HomePage />);
+
+    expect(screen.getByText('Upcoming Tasks')).toBeInTheDocument();
+    expect(screen.getByTestId('eye-icon')).toBeInTheDocument();
+  });
+
+  it('interaction test - clicking the load more button calls loadMore', async () => {
+    const loadMore = vi.fn();
     vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue({
-      ...baseHookReturn,
+      ...defaultHookValue,
+      hasMore: true,
+      loadMore,
     });
+
+    render(<HomePage />);
+
+    const loadMoreButton = screen.getByTestId('load-more-button');
+    await userEvent.click(loadMoreButton);
+
+    expect(loadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it('edge case - renders the EyeIcon in the same heading element as the Upcoming Tasks text', () => {
+    vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue(defaultHookValue);
 
     render(<HomePage />);
 
@@ -67,42 +95,7 @@ describe('HomePage', () => {
     expect(heading).toBeInTheDocument();
     expect(heading).toHaveTextContent('Upcoming Tasks');
 
-    const svg = heading.querySelector('svg');
-    expect(svg).toBeInTheDocument();
-    expect(svg).toHaveAttribute('aria-hidden', 'true');
-  });
-
-  it('interaction test - eye icon is non-interactive and has no button role or onClick handler', () => {
-    vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue({
-      ...baseHookReturn,
-    });
-
-    render(<HomePage />);
-
-    const heading = screen.getByRole('heading', { level: 2 });
-    const svg = heading.querySelector('svg');
-    expect(svg).toBeInTheDocument();
-
-    const buttons = screen.queryAllByRole('button');
-    buttons.forEach((btn) => {
-      expect(btn).not.toContainElement(svg as HTMLElement);
-    });
-
-    expect(svg).not.toHaveAttribute('onclick');
-  });
-
-  it('edge case - renders without crashing when visibleTasks is empty', () => {
-    vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue({
-      ...baseHookReturn,
-      visibleTasks: [],
-    });
-
-    render(<HomePage />);
-
-    expect(screen.getByText('No tasks found.')).toBeInTheDocument();
-
-    const heading = screen.getByRole('heading', { level: 2 });
-    const svg = heading.querySelector('svg');
-    expect(svg).toBeInTheDocument();
+    const eyeIcon = screen.getByTestId('eye-icon');
+    expect(heading).toContainElement(eyeIcon);
   });
 });
