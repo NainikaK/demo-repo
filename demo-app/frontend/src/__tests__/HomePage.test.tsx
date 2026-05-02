@@ -88,7 +88,7 @@ describe('HomePage', () => {
 
     render(<HomePage />);
 
-    expect(screen.getByText('No upcoming tasks.')).toBeInTheDocument();
+    expect(screen.getByText('No tasks found.')).toBeInTheDocument();
 
     const heading = screen.getByRole('heading', { level: 2 });
     const svg = heading.querySelector('svg');
