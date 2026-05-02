@@ -38,3 +38,5 @@ export const LABEL_LOAD_MORE = 'Load More';
 export const LABEL_LOAD_MORE_ARIA = 'Load more upcoming tasks';
 
 export const LABEL_TASK_FORM_HEADING_ICON_ARIA = 'decorative pencil icon';
+
+export const LABEL_EYE_ICON_ARIA = 'decorative eye icon';
