@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { HomePage } from '../pages/HomePage';
 import * as useUpcomingTasksModule from '../hooks/useUpcomingTasks';
@@ -11,18 +12,27 @@ vi.mock('../components/TaskForm', () => ({
 }));
 
 vi.mock('../components/TaskCard', () => ({
-  TaskCard: () => <div data-testid="task-card" />,
+  TaskCard: ({ task }: { task: Task }) => (
+    <div data-testid={`task-card-${task.id}`} />
+  ),
 }));
 
 vi.mock('../components/LoadMoreButton', () => ({
-  LoadMoreButton: () => <div data-testid="load-more-button" />,
+  LoadMoreButton: ({ onClick, visible }: { onClick: () => void; visible: boolean }) =>
+    visible ? <button onClick={onClick}>Load More</button> : null,
 }));
 
 vi.mock('../components/SmileyIcon', () => ({
-  SmileyIcon: () => <div data-testid="smiley-icon" />,
+  SmileyIcon: () => <span data-testid="smiley-icon" />,
 }));
 
-const baseHookReturn = {
+vi.mock('../components/EyeIcon', () => ({
+  EyeIcon: ({ className }: { className?: string }) => (
+    <span data-testid="eye-icon" className={className} />
+  ),
+}));
+
+const baseHookValue = {
   visibleTasks: [] as Task[],
   hasMore: false,
   loading: false,
@@ -43,55 +53,39 @@ describe('HomePage', () => {
     vi.restoreAllMocks();
   });
 
-  it('render test - renders the Upcoming Tasks heading with an eye SVG icon beside it', () => {
-    vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue({
-      ...baseHookReturn,
-    });
+  it('render test - renders the Upcoming Tasks heading with the EyeIcon beside it', () => {
+    vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue(baseHookValue);
 
     render(<HomePage />);
 
-    const heading = screen.getByRole('heading', { level: 2 });
-    expect(heading).toBeInTheDocument();
-    expect(heading).toHaveTextContent('Upcoming Tasks');
-
-    const svg = heading.querySelector('svg');
-    expect(svg).toBeInTheDocument();
-    expect(svg).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByText('Upcoming Tasks')).toBeInTheDocument();
+    expect(screen.getByTestId('eye-icon')).toBeInTheDocument();
   });
 
-  it('interaction test - eye icon is non-interactive and has no button role or onClick handler', () => {
+  it('interaction test - clicking Retry calls refetch when in error state', async () => {
+    const refetch = vi.fn();
     vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue({
-      ...baseHookReturn,
+      ...baseHookValue,
+      error: 'Network failure',
+      refetch,
     });
 
     render(<HomePage />);
 
-    const heading = screen.getByRole('heading', { level: 2 });
-    const svg = heading.querySelector('svg');
-    expect(svg).toBeInTheDocument();
+    const retryButton = screen.getByRole('button', { name: 'Retry loading tasks' });
+    await userEvent.click(retryButton);
 
-    // The SVG should not be wrapped in a button
-    const buttons = screen.queryAllByRole('button');
-    buttons.forEach((btn) => {
-      expect(btn).not.toContainElement(svg as HTMLElement);
-    });
-
-    // The SVG should not have a click handler attribute
-    expect(svg).not.toHaveAttribute('onclick');
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
-  it('edge case - renders without crashing when visibleTasks is empty', () => {
+  it('edge case - renders loading state without crashing', () => {
     vi.spyOn(useUpcomingTasksModule, 'useUpcomingTasks').mockReturnValue({
-      ...baseHookReturn,
-      visibleTasks: [],
+      ...baseHookValue,
+      loading: true,
     });
 
     render(<HomePage />);
 
-    expect(screen.getByText('No tasks found.')).toBeInTheDocument();
-
-    const heading = screen.getByRole('heading', { level: 2 });
-    const svg = heading.querySelector('svg');
-    expect(svg).toBeInTheDocument();
+    expect(screen.getByText('Loading tasks...')).toBeInTheDocument();
   });
 });
