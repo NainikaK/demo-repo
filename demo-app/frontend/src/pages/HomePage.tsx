@@ -62,8 +62,22 @@ export function HomePage() {
   return (
     <main className="max-w-2xl mx-auto px-6 py-8">
       <TaskForm onTaskCreated={handleTaskCreated} />
-      <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+      <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
         {LABEL_TASKS_HEADING}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className="inline-block w-[1em] h-[1em]"
+        >
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
       </h2>
       {completeError && (
         <p className="mb-4 text-sm text-red-600 dark:text-red-400">
