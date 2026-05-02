@@ -224,7 +224,7 @@ def _create_github_pr(title: str, body: str, branch_name: str, *, draft: bool) -
         return repo.create_pull(
             title=title,
             body=body,
-            head=branch_name,
+            head=f"{repo.owner.login}:{branch_name}",
             base=_BASE_BRANCH,
             draft=draft,
         )
