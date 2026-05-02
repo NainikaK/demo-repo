@@ -4,8 +4,12 @@ import { HomePage } from '../pages/HomePage';
 import * as useUpcomingTasksModule from '../hooks/useUpcomingTasks';
 import type { Task } from '../types';
 
+interface TaskFormMockProps {
+  onTaskCreated: (t: Task) => void;
+}
+
 vi.mock('../components/TaskForm', () => ({
-  TaskForm: ({ onTaskCreated }: { onTaskCreated: (t: Task) => void }) => (
+  TaskForm: (_props: TaskFormMockProps) => (
     <div data-testid="task-form" />
   ),
 }));
@@ -20,6 +24,15 @@ vi.mock('../components/LoadMoreButton', () => ({
 
 vi.mock('../components/SmileyIcon', () => ({
   SmileyIcon: () => <div data-testid="smiley-icon" />,
+}));
+
+vi.mock('../components/EyeIcon', () => ({
+  EyeIcon: () => (
+    <svg data-testid="eye-icon" aria-hidden="true">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
 }));
 
 const baseHookReturn = {
@@ -70,13 +83,11 @@ describe('HomePage', () => {
     const svg = heading.querySelector('svg');
     expect(svg).toBeInTheDocument();
 
-    // The SVG should not be wrapped in a button
     const buttons = screen.queryAllByRole('button');
     buttons.forEach((btn) => {
       expect(btn).not.toContainElement(svg as HTMLElement);
     });
 
-    // The SVG should not have a click handler attribute
     expect(svg).not.toHaveAttribute('onclick');
   });
 
