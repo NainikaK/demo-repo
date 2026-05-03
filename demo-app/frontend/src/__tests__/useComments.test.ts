@@ -2,13 +2,6 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { useComments } from '../hooks/useComments';
 
-const mockComment = {
-  id: 'c1',
-  taskId: 'task-1',
-  text: 'Test comment',
-  createdAt: '2024-01-01T10:00:00.000Z',
-};
-
 describe('useComments', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
@@ -18,90 +11,109 @@ describe('useComments', () => {
     vi.restoreAllMocks();
   });
 
-  it('success case - fetchComments sets comments when response is ok', async () => {
-    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: true,
-      json: async () => [mockComment],
+  describe('fetchComments', () => {
+    it('success case - returns comments when fetch succeeds', async () => {
+      const mockComments = [
+        { id: '1', taskId: 'task-1', text: 'Hello', createdAt: '2024-01-01T00:00:00Z' },
+        { id: '2', taskId: 'task-1', text: 'World', createdAt: '2024-01-02T00:00:00Z' },
+      ];
+      (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockComments,
+      });
+
+      const { result } = renderHook(() => useComments());
+
+      await act(async () => {
+        await result.current.fetchComments('task-1');
+      });
+
+      await waitFor(() => expect(result.current.fetchLoading).toBe(false));
+
+      expect(result.current.comments).toEqual(mockComments);
+      expect(result.current.fetchError).toBeNull();
     });
 
-    const { result } = renderHook(() => useComments());
+    it('error case - sets fetchError when response is not ok', async () => {
+      (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
 
-    await act(async () => {
-      await result.current.fetchComments('task-1');
+      const { result } = renderHook(() => useComments());
+
+      await act(async () => {
+        await result.current.fetchComments('task-1');
+      });
+
+      await waitFor(() => expect(result.current.fetchLoading).toBe(false));
+
+      expect(result.current.comments).toEqual([]);
+      expect(result.current.fetchError).toBe('Failed to load comments. Please try again.');
     });
 
-    expect(result.current.comments).toHaveLength(1);
-    expect(result.current.comments[0].text).toBe('Test comment');
-    expect(result.current.fetchError).toBeNull();
+    it('loading state - fetchLoading is true while fetchComments is in flight', async () => {
+      let resolve!: (value: unknown) => void;
+      const pending = new Promise((r) => { resolve = r; });
+      (fetch as ReturnType<typeof vi.fn>).mockReturnValueOnce(pending);
+
+      const { result } = renderHook(() => useComments());
+
+      act(() => {
+        result.current.fetchComments('task-1');
+      });
+
+      await waitFor(() => expect(result.current.fetchLoading).toBe(true));
+
+      await act(async () => {
+        resolve({ ok: true, json: async () => [] });
+      });
+
+      await waitFor(() => expect(result.current.fetchLoading).toBe(false));
+    });
   });
 
-  it('error case - fetchComments sets fetchError when response is not ok', async () => {
-    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: false,
-      status: 500,
+  describe('postComment', () => {
+    it('success case - returns new comment and appends it to comments list', async () => {
+      const newComment = { id: 'c1', taskId: 'task-1', text: 'New comment', createdAt: '2024-01-03T00:00:00Z' };
+      (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: async () => newComment,
+      });
+
+      const { result } = renderHook(() => useComments());
+
+      let returnValue: unknown;
+      await act(async () => {
+        returnValue = await result.current.postComment('task-1', 'New comment');
+      });
+
+      expect(returnValue).toEqual(newComment);
+      expect(result.current.comments).toContainEqual(newComment);
     });
 
-    const { result } = renderHook(() => useComments());
+    it('error case - returns null when post response is not ok', async () => {
+      (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
 
-    await act(async () => {
-      await result.current.fetchComments('task-1');
+      const { result } = renderHook(() => useComments());
+
+      let returnValue: unknown;
+      await act(async () => {
+        returnValue = await result.current.postComment('task-1', 'Bad comment');
+      });
+
+      expect(returnValue).toBeNull();
+      expect(result.current.comments).toEqual([]);
     });
 
-    expect(result.current.comments).toHaveLength(0);
-    expect(result.current.fetchError).toBe('Failed to load comments. Please try again.');
-  });
+    it('loading state - initial comments list is empty before any post', () => {
+      const { result } = renderHook(() => useComments());
 
-  it('loading state - fetchLoading is true while fetchComments is in flight', async () => {
-    let resolve!: (value: unknown) => void;
-    const pending = new Promise((r) => { resolve = r; });
-    (fetch as ReturnType<typeof vi.fn>).mockReturnValueOnce(pending);
-
-    const { result } = renderHook(() => useComments());
-
-    let loadingDuringFetch = false;
-    act(() => {
-      result.current.fetchComments('task-1').then(() => {});
-      loadingDuringFetch = result.current.fetchLoading;
+      expect(result.current.comments).toEqual([]);
+      expect(typeof result.current.postComment).toBe('function');
     });
-
-    resolve({ ok: true, json: async () => [] });
-    await waitFor(() => expect(result.current.fetchLoading).toBe(false));
-
-    expect(loadingDuringFetch).toBe(true);
-  });
-
-  it('success case - postComment returns the created comment and appends it to the list', async () => {
-    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockComment,
-    });
-
-    const { result } = renderHook(() => useComments());
-
-    let created;
-    await act(async () => {
-      created = await result.current.postComment('task-1', 'Test comment');
-    });
-
-    expect(created).toEqual(mockComment);
-    expect(result.current.comments).toHaveLength(1);
-    expect(result.current.comments[0].id).toBe('c1');
-  });
-
-  it('error case - postComment returns null when response is not ok', async () => {
-    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-    });
-
-    const { result } = renderHook(() => useComments());
-
-    let created;
-    await act(async () => {
-      created = await result.current.postComment('task-1', 'Bad comment');
-    });
-
-    expect(created).toBeNull();
-    expect(result.current.comments).toHaveLength(0);
   });
 });

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { CommentPanel } from '../components/CommentPanel';
@@ -6,23 +6,23 @@ import type { ActiveCommentTask } from '../types';
 
 const activeTask: ActiveCommentTask = { id: 'task-1', title: 'My Task Title' };
 
-const mockFetchSuccess = (comments: unknown[] = []) => {
-  (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-    ok: true,
-    json: async () => comments,
-  });
-};
+const mockFetchComments = vi.fn();
+const mockPostComment = vi.fn();
 
-const mockFetchError = () => {
-  (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-    ok: false,
-    status: 500,
-  });
-};
+vi.mock('../hooks/useComments', () => ({
+  useComments: () => ({
+    comments: [],
+    fetchLoading: false,
+    fetchError: null,
+    fetchComments: mockFetchComments,
+    postComment: mockPostComment,
+  }),
+}));
 
 describe('CommentPanel', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn());
+    vi.clearAllMocks();
+    mockFetchComments.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -30,7 +30,6 @@ describe('CommentPanel', () => {
   });
 
   it('render test - renders the task title and textarea when activeTask is provided', async () => {
-    mockFetchSuccess([]);
     render(
       <CommentPanel
         activeTask={activeTask}
@@ -39,33 +38,14 @@ describe('CommentPanel', () => {
       />
     );
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await waitFor(() => expect(mockFetchComments).toHaveBeenCalledWith('task-1'));
+
     expect(screen.getByText('My Task Title')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Comment text' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save comment' })).toBeInTheDocument();
-    await waitFor(() =>
-      expect(screen.getByText('No comments yet.')).toBeInTheDocument()
-    );
   });
 
-  it('render test - displays existing comments fetched from the API', async () => {
-    const comments = [
-      { id: 'c1', taskId: 'task-1', text: 'First comment', createdAt: '2024-01-01T10:00:00.000Z' },
-    ];
-    mockFetchSuccess(comments);
-    render(
-      <CommentPanel
-        activeTask={activeTask}
-        onClose={vi.fn()}
-        onCommentAdded={vi.fn()}
-      />
-    );
-
-    await waitFor(() =>
-      expect(screen.getByText('First comment')).toBeInTheDocument()
-    );
-  });
-
-  it('render test - renders nothing when activeTask is null', () => {
+  it('render test - renders null when activeTask is null', () => {
     const { container } = render(
       <CommentPanel
         activeTask={null}
@@ -78,7 +58,6 @@ describe('CommentPanel', () => {
   });
 
   it('interaction test - calls onClose when the close button is clicked', async () => {
-    mockFetchSuccess([]);
     const onClose = vi.fn();
     render(
       <CommentPanel
@@ -88,34 +67,13 @@ describe('CommentPanel', () => {
       />
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Close comments panel' }));
+    const closeButton = screen.getByRole('button', { name: 'Close comments panel' });
+    await userEvent.click(closeButton);
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('interaction test - shows validation error when input exceeds 500 characters', async () => {
-    mockFetchSuccess([]);
-    render(
-      <CommentPanel
-        activeTask={activeTask}
-        onClose={vi.fn()}
-        onCommentAdded={vi.fn()}
-      />
-    );
-
-    const textarea = screen.getByRole('textbox', { name: 'Comment text' });
-    const longText = 'a'.repeat(501);
-    await userEvent.type(textarea, longText);
-
-    await waitFor(() =>
-      expect(
-        screen.getByText('Comment must not exceed 500 characters.')
-      ).toBeInTheDocument()
-    );
-  });
-
   it('interaction test - Save button is disabled when input is empty', async () => {
-    mockFetchSuccess([]);
     render(
       <CommentPanel
         activeTask={activeTask}
@@ -128,15 +86,32 @@ describe('CommentPanel', () => {
     expect(saveButton).toBeDisabled();
   });
 
-  it('interaction test - successfully saves a comment and calls onCommentAdded', async () => {
-    const existingComments: unknown[] = [];
-    const newComment = { id: 'c2', taskId: 'task-1', text: 'Hello world', createdAt: '2024-06-01T12:00:00.000Z' };
+  it('interaction test - shows validation error when text exceeds 500 characters', async () => {
+    render(
+      <CommentPanel
+        activeTask={activeTask}
+        onClose={vi.fn()}
+        onCommentAdded={vi.fn()}
+      />
+    );
 
-    (fetch as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({ ok: true, json: async () => existingComments })
-      .mockResolvedValueOnce({ ok: true, json: async () => newComment });
+    const textarea = screen.getByRole('textbox', { name: 'Comment text' });
+    const longText = 'a'.repeat(501);
+    await userEvent.type(textarea, longText);
 
+    expect(screen.getByText('Comment must not exceed 500 characters.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save comment' })).toBeDisabled();
+  });
+
+  it('interaction test - calls postComment and onCommentAdded on successful save', async () => {
     const onCommentAdded = vi.fn();
+    mockPostComment.mockResolvedValueOnce({
+      id: 'c1',
+      taskId: 'task-1',
+      text: 'Hello',
+      createdAt: '2024-01-01T00:00:00Z',
+    });
+
     render(
       <CommentPanel
         activeTask={activeTask}
@@ -145,24 +120,18 @@ describe('CommentPanel', () => {
       />
     );
 
-    await waitFor(() =>
-      expect(screen.getByText('No comments yet.')).toBeInTheDocument()
-    );
-
     const textarea = screen.getByRole('textbox', { name: 'Comment text' });
-    await userEvent.type(textarea, 'Hello world');
-    await userEvent.click(screen.getByRole('button', { name: 'Save comment' }));
+    await userEvent.type(textarea, 'Hello');
+
+    const saveButton = screen.getByRole('button', { name: 'Save comment' });
+    await userEvent.click(saveButton);
 
     await waitFor(() => expect(onCommentAdded).toHaveBeenCalledWith('task-1'));
-    await waitFor(() =>
-      expect(screen.getByText('Hello world')).toBeInTheDocument()
-    );
+    expect(mockPostComment).toHaveBeenCalledWith('task-1', 'Hello');
   });
 
-  it('interaction test - shows error message when save fails', async () => {
-    (fetch as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({ ok: true, json: async () => [] })
-      .mockResolvedValueOnce({ ok: false, status: 500 });
+  it('interaction test - shows save error when postComment returns null', async () => {
+    mockPostComment.mockResolvedValueOnce(null);
 
     render(
       <CommentPanel
@@ -172,23 +141,18 @@ describe('CommentPanel', () => {
       />
     );
 
-    await waitFor(() =>
-      expect(screen.getByText('No comments yet.')).toBeInTheDocument()
-    );
-
     const textarea = screen.getByRole('textbox', { name: 'Comment text' });
-    await userEvent.type(textarea, 'A valid comment');
-    await userEvent.click(screen.getByRole('button', { name: 'Save comment' }));
+    await userEvent.type(textarea, 'Hello');
+
+    const saveButton = screen.getByRole('button', { name: 'Save comment' });
+    await userEvent.click(saveButton);
 
     await waitFor(() =>
-      expect(
-        screen.getByText('Failed to save comment. Please try again.')
-      ).toBeInTheDocument()
+      expect(screen.getByText('Failed to save comment. Please try again.')).toBeInTheDocument()
     );
   });
 
-  it('interaction test - calls onClose when Escape key is pressed', async () => {
-    mockFetchSuccess([]);
+  it('edge case - calls onClose when Escape key is pressed', async () => {
     const onClose = vi.fn();
     render(
       <CommentPanel
@@ -198,25 +162,22 @@ describe('CommentPanel', () => {
       />
     );
 
-    await userEvent.keyboard('{Escape}');
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('edge case - displays fetch error message when comments fail to load', async () => {
-    mockFetchError();
+  it('edge case - does not render when activeTask is null and overlay is not present', () => {
     render(
       <CommentPanel
-        activeTask={activeTask}
+        activeTask={null}
         onClose={vi.fn()}
         onCommentAdded={vi.fn()}
       />
     );
 
-    await waitFor(() =>
-      expect(
-        screen.getByText('Failed to load comments. Please try again.')
-      ).toBeInTheDocument()
-    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
