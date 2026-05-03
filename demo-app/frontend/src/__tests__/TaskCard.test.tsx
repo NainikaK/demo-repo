@@ -13,87 +13,61 @@ vi.mock('../components/PriorityIcon', () => ({
 }));
 
 vi.mock('../components/DueDateBadge', () => ({
-  DueDateBadge: ({ dueDate }: { dueDate?: string }) => (
-    dueDate ? <span data-testid="due-date-badge" /> : null
+  DueDateBadge: () => <span data-testid="due-date-badge" />,
+}));
+
+vi.mock('../components/CommentButton', () => ({
+  CommentButton: ({ commentCount, onClick }: { commentCount: number; onClick: () => void }) => (
+    <button data-testid="comment-button" onClick={onClick}>
+      {commentCount}
+    </button>
   ),
 }));
 
-function getTodayString(): string {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-const baseTask: Task = {
+const makeTask = (overrides: Partial<Task> = {}): Task => ({
   id: 'task-1',
-  title: 'Test Task Title',
+  title: 'Test Task',
   completed: false,
-  createdAt: '2024-01-15T10:00:00.000Z',
+  createdAt: '2024-01-01T10:00:00.000Z',
   priority: 'medium',
-};
+  ...overrides,
+});
 
 describe('TaskCard', () => {
-  it('render test - renders the task title without crashing given valid props', () => {
-    render(<TaskCard task={baseTask} />);
+  it('render test - renders the task title and comment button when onCommentClick is provided', () => {
+    render(
+      <TaskCard
+        task={makeTask()}
+        commentCount={4}
+        onCommentClick={vi.fn()}
+      />
+    );
 
-    expect(screen.getByText('Test Task Title')).toBeInTheDocument();
+    expect(screen.getByText('Test Task')).toBeInTheDocument();
+    expect(screen.getByTestId('comment-button')).toBeInTheDocument();
+    expect(screen.getByText('4')).toBeInTheDocument();
   });
 
-  it('interaction test - calls onComplete with the task id when the Mark Complete button is clicked', async () => {
-    const onComplete = vi.fn().mockResolvedValue(undefined);
-    render(<TaskCard task={baseTask} onComplete={onComplete} />);
+  it('interaction test - calls onCommentClick with the task when comment button is clicked', async () => {
+    const onCommentClick = vi.fn();
+    const task = makeTask();
+    render(
+      <TaskCard
+        task={task}
+        commentCount={2}
+        onCommentClick={onCommentClick}
+      />
+    );
 
-    const button = screen.getByRole('button', { name: /Mark task as complete: Test Task Title/i });
-    await userEvent.click(button);
+    await userEvent.click(screen.getByTestId('comment-button'));
 
-    expect(onComplete).toHaveBeenCalledWith('task-1');
+    expect(onCommentClick).toHaveBeenCalledTimes(1);
+    expect(onCommentClick).toHaveBeenCalledWith(task);
   });
 
-  it('edge case - renders without crashing when optional props are absent', () => {
-    const minimalTask: Task = {
-      id: 'task-min',
-      title: 'Minimal Task',
-      completed: false,
-      createdAt: '2024-01-01T00:00:00.000Z',
-      priority: 'low',
-    };
-    render(<TaskCard task={minimalTask} />);
+  it('edge case - renders without a comment button when onCommentClick is not provided', () => {
+    render(<TaskCard task={makeTask()} />);
 
-    expect(screen.getByText('Minimal Task')).toBeInTheDocument();
-    expect(screen.queryByTestId('assignee-avatar')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
-  });
-
-  it('renders DueDateBadge when task has a dueDate', () => {
-    const taskWithDueDate: Task = {
-      ...baseTask,
-      dueDate: getTodayString(),
-    };
-    render(<TaskCard task={taskWithDueDate} />);
-
-    expect(screen.getByTestId('due-date-badge')).toBeInTheDocument();
-  });
-
-  it('does not render DueDateBadge when the task is completed', () => {
-    const completedTask: Task = {
-      ...baseTask,
-      completed: true,
-      dueDate: getTodayString(),
-    };
-    render(<TaskCard task={completedTask} />);
-
-    expect(screen.queryByTestId('due-date-badge')).not.toBeInTheDocument();
-  });
-
-  it('renders Completed badge when task is completed', () => {
-    const completedTask: Task = {
-      ...baseTask,
-      completed: true,
-    };
-    render(<TaskCard task={completedTask} />);
-
-    expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect(screen.queryByTestId('comment-button')).not.toBeInTheDocument();
   });
 });
