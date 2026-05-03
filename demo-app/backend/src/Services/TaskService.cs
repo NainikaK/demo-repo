@@ -17,17 +17,22 @@ public sealed class TaskService : ITaskService
     private const string PriorityLow = "low";
     private const string PriorityMedium = "medium";
     private const string PriorityHigh = "high";
+    private const string ActivityTaskCreated = "Task created";
+    private const string ActivityTaskCompleted = "Task marked complete";
 
     private readonly List<TaskModel> _tasks;
     private int _nextId;
     private readonly object _lock = new();
     private readonly ILogger<TaskService> _logger;
+    private readonly IActivityService _activityService;
 
     /// <summary>Initialises the service and seeds sample tasks.</summary>
     /// <param name="logger">The logger instance.</param>
-    public TaskService(ILogger<TaskService> logger)
+    /// <param name="activityService">The activity service for recording task events.</param>
+    public TaskService(ILogger<TaskService> logger, IActivityService activityService)
     {
         _logger = logger;
+        _activityService = activityService;
 
         _tasks =
         [
@@ -108,7 +113,7 @@ public sealed class TaskService : ITaskService
 
     /// <summary>Creates a new task from the provided DTO and returns the persisted task as a DTO.</summary>
     /// <param name="dto">The data required to create the task.</param>
-    public Task<TaskDto> CreateTaskAsync(CreateTaskDto dto)
+    public async Task<TaskDto> CreateTaskAsync(CreateTaskDto dto)
     {
         try
         {
@@ -131,7 +136,8 @@ public sealed class TaskService : ITaskService
             }
 
             _logger.LogInformation("Task created with id {Id}.", task.Id);
-            return Task.FromResult(MapToDto(task));
+            await _activityService.RecordActivityAsync(task.Id, ActivityTaskCreated);
+            return MapToDto(task);
         }
         catch (Exception ex)
         {
@@ -142,30 +148,33 @@ public sealed class TaskService : ITaskService
 
     /// <summary>Marks an existing task as complete.</summary>
     /// <param name="id">The task identifier.</param>
-    public Task<CompleteTaskResult> CompleteTaskAsync(string id)
+    public async Task<CompleteTaskResult> CompleteTaskAsync(string id)
     {
         try
         {
+            TaskModel? task;
             lock (_lock)
             {
-                var task = _tasks.FirstOrDefault(t => t.Id == id);
+                task = _tasks.FirstOrDefault(t => t.Id == id);
 
                 if (task is null)
                 {
                     _logger.LogWarning("CompleteTask: task {Id} not found.", id);
-                    return Task.FromResult<CompleteTaskResult>(new CompleteTaskResult.NotFound());
+                    return new CompleteTaskResult.NotFound();
                 }
 
                 if (task.Completed)
                 {
                     _logger.LogWarning("CompleteTask: task {Id} is already completed.", id);
-                    return Task.FromResult<CompleteTaskResult>(new CompleteTaskResult.AlreadyCompleted());
+                    return new CompleteTaskResult.AlreadyCompleted();
                 }
 
                 task.Completed = true;
                 _logger.LogInformation("Task {Id} marked as complete.", id);
-                return Task.FromResult<CompleteTaskResult>(new CompleteTaskResult.Success(MapToDto(task)));
             }
+
+            await _activityService.RecordActivityAsync(task.Id, ActivityTaskCompleted);
+            return new CompleteTaskResult.Success(MapToDto(task));
         }
         catch (Exception ex)
         {

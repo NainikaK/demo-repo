@@ -1,5 +1,6 @@
 using DemoApp.Api.DTOs;
 using DemoApp.Api.Models;
+using Microsoft.Extensions.Logging;
 
 namespace DemoApp.Api.Services;
 
@@ -9,8 +10,21 @@ namespace DemoApp.Api.Services;
 /// </summary>
 public class CommentService : ICommentService
 {
+    private const string ActivityCommentAdded = "Comment added";
+
     private readonly List<Comment> _comments = [];
     private readonly object _lock = new();
+    private readonly IActivityService _activityService;
+    private readonly ILogger<CommentService> _logger;
+
+    /// <summary>Initialises the service.</summary>
+    /// <param name="activityService">The activity service for recording comment events.</param>
+    /// <param name="logger">The logger instance.</param>
+    public CommentService(IActivityService activityService, ILogger<CommentService> logger)
+    {
+        _activityService = activityService;
+        _logger = logger;
+    }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<CommentDto>> GetCommentsByTaskIdAsync(string taskId)
@@ -30,7 +44,7 @@ public class CommentService : ICommentService
     }
 
     /// <inheritdoc />
-    public Task<CommentDto> AddCommentAsync(string taskId, string text)
+    public async Task<CommentDto> AddCommentAsync(string taskId, string text)
     {
         var comment = new Comment
         {
@@ -45,7 +59,9 @@ public class CommentService : ICommentService
             _comments.Add(comment);
         }
 
-        return Task.FromResult(MapToDto(comment));
+        _logger.LogInformation("Comment added to task {TaskId}.", taskId);
+        await _activityService.RecordActivityAsync(taskId, ActivityCommentAdded);
+        return MapToDto(comment);
     }
 
     /// <inheritdoc />
