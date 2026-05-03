@@ -65,7 +65,7 @@ describe('useComments', () => {
       await result.current.fetchComments('task-1');
     });
 
-    expect(result.current.fetchError).toBe('Request failed with status 500');
+    expect(result.current.fetchError).toBe('Failed to load comments. Please try again.');
     expect(result.current.comments).toEqual([]);
     expect(result.current.fetchLoading).toBe(false);
   });
