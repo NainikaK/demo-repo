@@ -19,3 +19,15 @@ export interface CreateTaskPayload {
   assignedTo?: string;
   priority?: Priority;
 }
+
+export interface Comment {
+  id: string;
+  taskId: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface ActiveCommentTask {
+  id: string;
+  title: string;
+}

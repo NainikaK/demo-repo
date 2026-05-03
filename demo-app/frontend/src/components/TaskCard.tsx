@@ -1,6 +1,7 @@
 import { AssigneeAvatar } from './AssigneeAvatar';
 import { PriorityIcon } from './PriorityIcon';
 import { DueDateBadge } from './DueDateBadge';
+import { CommentButton } from './CommentButton';
 import type { Task } from '../types';
 import {
   LABEL_COMPLETED,
@@ -11,12 +12,25 @@ import {
 interface TaskCardProps {
   task: Task;
   onComplete?: (id: string) => Promise<void>;
+  commentCount?: number;
+  onCommentClick?: (task: Task) => void;
 }
 
-export function TaskCard({ task, onComplete }: TaskCardProps) {
+export function TaskCard({
+  task,
+  onComplete,
+  commentCount = 0,
+  onCommentClick,
+}: TaskCardProps) {
   const handleComplete = async () => {
     if (task.completed || !onComplete) return;
     await onComplete(task.id);
+  };
+
+  const handleCommentClick = () => {
+    if (onCommentClick) {
+      onCommentClick(task);
+    }
   };
 
   return (
@@ -57,6 +71,12 @@ export function TaskCard({ task, onComplete }: TaskCardProps) {
                 {LABEL_MARK_COMPLETE}
               </button>
             )
+          )}
+          {onCommentClick && (
+            <CommentButton
+              commentCount={commentCount}
+              onClick={handleCommentClick}
+            />
           )}
         </div>
       </div>

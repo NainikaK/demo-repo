@@ -1,3 +1,4 @@
+import { useEffect, useState, useCallback } from 'react';
 import { TaskCard } from '../components/TaskCard';
 import { TaskForm } from '../components/TaskForm';
 import { LoadMoreButton } from '../components/LoadMoreButton';
@@ -5,10 +6,12 @@ import { SmileyIcon } from '../components/SmileyIcon';
 import { EyeIcon } from '../components/EyeIcon';
 import { CompletedTasksSection } from '../components/CompletedTasksSection';
 import { PriorityFilter } from '../components/PriorityFilter';
+import { CommentPanel } from '../components/CommentPanel';
 import { useUpcomingTasks } from '../hooks/useUpcomingTasks';
 import { useCompletedTasks } from '../hooks/useCompletedTasks';
 import { usePriorityFilter } from '../hooks/usePriorityFilter';
-import type { Task } from '../types';
+import type { Task, ActiveCommentTask } from '../types';
+import { COMMENTS_URL } from '../utils/constants';
 import {
   LABEL_COMPLETE_ERROR,
   LABEL_ERROR_PREFIX,
@@ -20,6 +23,17 @@ import {
 } from '../utils/strings';
 
 const UPCOMING_TASKS_MAX_HEIGHT = 'max-h-[200px]';
+
+async function fetchCommentCount(taskId: string): Promise<number> {
+  try {
+    const response = await fetch(COMMENTS_URL(taskId));
+    if (!response.ok) return 0;
+    const data: unknown[] = await response.json();
+    return data.length;
+  } catch {
+    return 0;
+  }
+}
 
 export function HomePage() {
   const {
@@ -38,11 +52,50 @@ export function HomePage() {
 
   const { selectedPriority, setSelectedPriority, filterTasks } = usePriorityFilter();
 
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [activeCommentTask, setActiveCommentTask] =
+    useState<ActiveCommentTask | null>(null);
+
   const filteredTasks = filterTasks(visibleTasks);
+
+  useEffect(() => {
+    if (visibleTasks.length === 0) return;
+    const loadCounts = async () => {
+      const entries = await Promise.all(
+        visibleTasks.map(async (task) => {
+          const count = await fetchCommentCount(task.id);
+          return [task.id, count] as [string, number];
+        })
+      );
+      setCommentCounts((prev) => {
+        const next = { ...prev };
+        for (const [id, count] of entries) {
+          next[id] = count;
+        }
+        return next;
+      });
+    };
+    loadCounts();
+  }, [visibleTasks]);
 
   const handleTaskCreated = (task: Task) => {
     addTask(task);
   };
+
+  const handleCommentClick = useCallback((task: Task) => {
+    setActiveCommentTask({ id: task.id, title: task.title });
+  }, []);
+
+  const handlePanelClose = useCallback(() => {
+    setActiveCommentTask(null);
+  }, []);
+
+  const handleCommentAdded = useCallback((taskId: string) => {
+    setCommentCounts((prev) => ({
+      ...prev,
+      [taskId]: (prev[taskId] ?? 0) + 1,
+    }));
+  }, []);
 
   if (loading) {
     return (
@@ -92,7 +145,12 @@ export function HomePage() {
         <ul className={`flex flex-col gap-3 overflow-y-auto ${UPCOMING_TASKS_MAX_HEIGHT}`}>
           {filteredTasks.map((task) => (
             <li key={task.id}>
-              <TaskCard task={task} onComplete={completeTask} />
+              <TaskCard
+                task={task}
+                onComplete={completeTask}
+                commentCount={commentCounts[task.id] ?? 0}
+                onCommentClick={handleCommentClick}
+              />
             </li>
           ))}
         </ul>
@@ -107,6 +165,11 @@ export function HomePage() {
       <div className="flex justify-center mt-6">
         <SmileyIcon />
       </div>
+      <CommentPanel
+        activeTask={activeCommentTask}
+        onClose={handlePanelClose}
+        onCommentAdded={handleCommentAdded}
+      />
     </main>
   );
 }

@@ -62,3 +62,18 @@ export const LABEL_PRIORITY_ICON_ARIA_PREFIX = 'Priority:';
 
 export const LABEL_DUE_TODAY = 'Due Today';
 export const LABEL_OVERDUE = 'Overdue';
+
+export const LABEL_COMMENT_BUTTON_ARIA = 'View comments';
+export const LABEL_COMMENT_PANEL_CLOSE = 'Close comments panel';
+export const LABEL_COMMENT_PANEL_CLOSE_ARIA = 'Close comments panel';
+export const LABEL_COMMENT_INPUT_PLACEHOLDER = 'Write a comment...';
+export const LABEL_COMMENT_INPUT_ARIA = 'Comment text';
+export const LABEL_COMMENT_SAVE = 'Save';
+export const LABEL_COMMENT_SAVE_ARIA = 'Save comment';
+export const LABEL_COMMENT_LOADING = 'Loading comments...';
+export const LABEL_COMMENT_FETCH_ERROR = 'Failed to load comments. Please try again.';
+export const LABEL_COMMENT_SAVE_ERROR = 'Failed to save comment. Please try again.';
+export const LABEL_COMMENT_VALIDATION_TOO_LONG = 'Comment must not exceed 500 characters.';
+export const LABEL_COMMENT_NO_COMMENTS = 'No comments yet.';
+export const LABEL_COMMENT_OVERLAY_ARIA = 'Close panel overlay';
+export const LABEL_COMMENT_PANEL_ARIA_PREFIX = 'Comments for';
