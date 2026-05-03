@@ -47,3 +47,6 @@ export const LABEL_EYE_ICON_ARIA = 'decorative eye icon';
 export const LABEL_ASSIGNEE_AVATAR_ARIA_PREFIX = 'Assigned to';
 
 export const LABEL_CHECK_TICK_ICON_ARIA = 'check tick icon';
+
+export const LABEL_COMPLETED_TASKS_HEADING = 'Completed Tasks';
+export const LABEL_NO_COMPLETED_TASKS = 'No completed tasks yet';

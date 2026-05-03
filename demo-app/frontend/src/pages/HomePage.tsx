@@ -3,7 +3,9 @@ import { TaskForm } from '../components/TaskForm';
 import { LoadMoreButton } from '../components/LoadMoreButton';
 import { SmileyIcon } from '../components/SmileyIcon';
 import { EyeIcon } from '../components/EyeIcon';
+import { CompletedTasksSection } from '../components/CompletedTasksSection';
 import { useUpcomingTasks } from '../hooks/useUpcomingTasks';
+import { useCompletedTasks } from '../hooks/useCompletedTasks';
 import type { Task } from '../types';
 import {
   LABEL_COMPLETE_ERROR,
@@ -29,6 +31,8 @@ export function HomePage() {
     completeTask,
     loadMore,
   } = useUpcomingTasks();
+
+  const { completedTasks } = useCompletedTasks();
 
   const handleTaskCreated = (task: Task) => {
     addTask(task);
@@ -84,6 +88,12 @@ export function HomePage() {
         </ul>
       )}
       <LoadMoreButton onClick={loadMore} visible={hasMore} />
+      <div className="mt-8">
+        <CompletedTasksSection
+          completedTasks={completedTasks}
+          onComplete={completeTask}
+        />
+      </div>
       <div className="flex justify-center mt-6">
         <SmileyIcon />
       </div>

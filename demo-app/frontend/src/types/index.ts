@@ -5,6 +5,7 @@ export interface Task {
   dueDate?: string;
   completed: boolean;
   createdAt: string;
+  completedAt?: string;
   assignedTo?: string;
 }
 
