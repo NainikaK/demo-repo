@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
@@ -23,7 +24,7 @@ vi.mock('../hooks/useActivity', () => ({
 }));
 
 vi.mock('../components/ActivityFeed', () => ({
-  ActivityFeed: () => <div data-testid="activity-feed" />,
+  ActivityFeed: () => React.createElement('div', { 'data-testid': 'activity-feed' }),
 }));
 
 const activeTask = { id: 'task-1', title: 'My Task' };
