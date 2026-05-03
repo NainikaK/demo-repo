@@ -18,7 +18,7 @@ const makeTask = (id: string): Task => ({
 });
 
 describe('CompletedTasksSection', () => {
-  it('render test - renders the completed tasks heading and a list of task cards when tasks are provided', () => {
+  it('render test - renders the section heading and a list of completed tasks', () => {
     const tasks = [makeTask('1'), makeTask('2')];
 
     render(
@@ -30,7 +30,7 @@ describe('CompletedTasksSection', () => {
     expect(cards).toHaveLength(2);
   });
 
-  it('interaction test - the task list container has max-h-[200px] and overflow-y-auto classes applied', () => {
+  it('interaction test - the task list container has the scrollable max-height classes applied', () => {
     const tasks = [makeTask('1'), makeTask('2'), makeTask('3')];
 
     render(
@@ -47,7 +47,7 @@ describe('CompletedTasksSection', () => {
       <CompletedTasksSection completedTasks={[]} onComplete={vi.fn()} />
     );
 
-    expect(screen.getByText('No completed tasks yet.')).toBeInTheDocument();
+    expect(screen.getByText('No completed tasks yet')).toBeInTheDocument();
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });
 });
