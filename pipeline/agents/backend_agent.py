@@ -29,7 +29,7 @@ from contracts.structured_spec import StructuredSpec  # noqa: E402
 import git_utils  # noqa: E402
 
 _MODEL = "claude-sonnet-4-6"
-_MAX_TOKENS = 8192
+_MAX_TOKENS = 16000
 _REVIEW_MAX_TOKENS = 1024
 _VALIDATION_MAX_TOKENS = 1024
 _MAX_SLUG_LENGTH = 30
@@ -38,6 +38,16 @@ _BRANCH_PREFIX = "feature"
 _LOG_PREFIX = "[backend_agent]"
 
 _PROMPT_PATH = _PIPELINE_DIR / "prompts" / "backend.md"
+
+_BACKEND_PER_FILE_GEN_PROMPT = """\
+You are a senior .NET C# engineer. Generate the content for EXACTLY ONE file — the path is in \
+the "target_file" key of the input. Follow all standards: thin controllers, DI via interfaces, \
+async/await throughout (no .Result/.Wait()), XML doc comments on all public methods, use DTOs \
+(never return entity objects from endpoints), versioned API paths (/api/v1/), semantically \
+correct HTTP status codes, no unused using directives. \
+Return ONLY a valid JSON object with a single key (the target file path) and the complete file \
+content as the value. No preamble, no markdown fences. Start with { and end with }.\
+"""
 
 _JSON_RECOVERY_SYSTEM = """\
 You are a JSON extractor. The input contains a JSON object somewhere inside it. \
@@ -167,6 +177,17 @@ def _make_slug(title: str) -> str:
     return slug[:_MAX_SLUG_LENGTH].rstrip("-")
 
 
+def _read_files_from_paths(paths: list[str]) -> dict[str, str]:
+    """Read repo-relative file paths into a {path: content} map, skipping unreadable files."""
+    result: dict[str, str] = {}
+    for path in paths:
+        try:
+            result[path] = git_utils.read_file(path)
+        except (FileNotFoundError, RuntimeError):
+            pass
+    return result
+
+
 def _read_existing_files(lld: LLDDocument) -> dict[str, str]:
     """Read current content of every backend file marked for modification in the LLD."""
     existing: dict[str, str] = {}
@@ -187,12 +208,16 @@ def _build_code_gen_message(
     existing_files: dict[str, str],
 ) -> str:
     """Assemble the Claude user message with the LLD, spec, frontend summary, and existing files."""
+    frontend_source = _read_files_from_paths(
+        frontend_summary.files_created + frontend_summary.files_modified
+    )
     return json.dumps({
         "acceptance_criteria": spec.acceptance_criteria,
         "frontend_changes_summary": {
             "files_created": frontend_summary.files_created,
             "files_modified": frontend_summary.files_modified,
             "visual_description": frontend_summary.visual_description,
+            "source_files": frontend_source,
         },
         "backend_lld": {
             "endpoints": [
@@ -301,6 +326,14 @@ def _call_claude_json(
             f"Backend Agent: Claude API call failed ({context}) — {exc}"
         ) from exc
 
+    # Truncated responses cannot be recovered — raise immediately so the caller
+    # can switch to a per-file split strategy rather than wasting a recovery call.
+    if response.stop_reason == "max_tokens":
+        raise RuntimeError(
+            f"Backend Agent: {context} response truncated (stop_reason=max_tokens, "
+            f"partial_length={len(response.content[0].text)} chars)."
+        )
+
     raw_text = response.content[0].text
     parsed = _try_parse_json_object(raw_text)
     if parsed is None:
@@ -314,9 +347,49 @@ def _call_claude_for_code(
     user_message: str,
     anthropic_client: anthropic.Anthropic,
 ) -> dict[str, str]:
-    """Invoke Claude for code generation and return a {file_path: content} map."""
-    raw = _call_claude_json(system_prompt, user_message, anthropic_client, _MAX_TOKENS, "code generation")
-    return {str(k): str(v) for k, v in raw.items()}
+    """Invoke Claude for code generation; falls back to per-file generation if response is truncated."""
+    try:
+        raw = _call_claude_json(system_prompt, user_message, anthropic_client, _MAX_TOKENS, "code generation")
+        return {str(k): str(v) for k, v in raw.items()}
+    except RuntimeError:
+        print(f"{_LOG_PREFIX} full code generation failed — falling back to per-file generation")
+        return _call_claude_per_file(user_message, anthropic_client)
+
+
+def _call_claude_per_file(
+    user_message: str,
+    anthropic_client: anthropic.Anthropic,
+) -> dict[str, str]:
+    """Generate each file individually when combined generation exceeds the token limit."""
+    try:
+        payload = json.loads(user_message)
+    except (json.JSONDecodeError, ValueError):
+        payload = {}
+
+    lld_info = payload.get("backend_lld", {})
+    all_files = lld_info.get("files_to_create", []) + lld_info.get("files_to_modify", [])
+    if not all_files:
+        return {}
+
+    merged: dict[str, str] = {}
+    for file_path in all_files:
+        single_msg = json.dumps({
+            **payload,
+            "target_file": file_path,
+            "note": (
+                f"Generate ONLY the file at path '{file_path}'. "
+                "Return a JSON object with exactly one key (the file path) and the complete file content."
+            ),
+        }, indent=2)
+        try:
+            raw = _call_claude_json(
+                _BACKEND_PER_FILE_GEN_PROMPT, single_msg, anthropic_client,
+                _MAX_TOKENS, f"per-file: {file_path}",
+            )
+            merged.update({str(k): str(v) for k, v in raw.items()})
+        except RuntimeError as exc:
+            print(f"{_LOG_PREFIX} warning: per-file generation failed for {file_path!r} — {exc}")
+    return merged
 
 
 def _validate_and_write(
