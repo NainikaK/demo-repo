@@ -41,3 +41,13 @@ describe('ActivityFeed', () => {
     expect(screen.getByText('No activity recorded yet.')).toBeInTheDocument();
   });
 });
+
+describe('CompletedTasksSection edge case', () => {
+  it('renders the empty state message when completedTasks is an empty array', async () => {
+    const { CompletedTasksSection } = await import('../components/CompletedTasksSection');
+    render(
+      <CompletedTasksSection completedTasks={[]} onComplete={() => {}} />
+    );
+    expect(screen.getByText('No completed tasks yet')).toBeInTheDocument();
+  });
+});
