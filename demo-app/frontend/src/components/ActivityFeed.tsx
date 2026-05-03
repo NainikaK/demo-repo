@@ -48,7 +48,7 @@ export function ActivityFeed({
           className="rounded-md bg-gray-50 dark:bg-gray-800 px-3 py-2"
         >
           <p className="text-sm text-gray-800 dark:text-gray-200">
-            {entry.description}
+            {entry.eventType}
           </p>
           <time
             className="mt-1 block text-xs text-gray-400 dark:text-gray-500"

@@ -35,6 +35,6 @@ export interface ActiveCommentTask {
 export interface ActivityEntry {
   id: string;
   taskId: string;
-  description: string;
+  eventType: string;
   createdAt: string;
 }

@@ -61,8 +61,7 @@ export function CommentPanel({
     setSaveError(null);
     setActiveTab(TAB_COMMENTS);
     fetchComments(activeTask.id);
-    fetchActivity(activeTask.id);
-  }, [activeTask, fetchComments, fetchActivity]);
+  }, [activeTask, fetchComments]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -87,6 +86,16 @@ export function CommentPanel({
     [onClose]
   );
 
+  const handleTabChange = useCallback(
+    (tab: ActiveTab) => {
+      setActiveTab(tab);
+      if (tab === TAB_ACTIVITY && activeTask) {
+        fetchActivity(activeTask.id);
+      }
+    },
+    [activeTask, fetchActivity]
+  );
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setInputText(value);
@@ -109,7 +118,6 @@ export function CommentPanel({
       setInputText('');
       setValidationError(null);
       onCommentAdded(activeTask.id);
-      fetchActivity(activeTask.id);
     }
   };
 
@@ -150,7 +158,7 @@ export function CommentPanel({
         <div className="flex border-b border-gray-200 dark:border-gray-700">
           <button
             aria-label={LABEL_TAB_COMMENTS_ARIA}
-            onClick={() => setActiveTab(TAB_COMMENTS)}
+            onClick={() => handleTabChange(TAB_COMMENTS)}
             className={`flex-1 py-2 text-sm font-medium transition-colors ${
               activeTab === TAB_COMMENTS
                 ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
@@ -161,7 +169,7 @@ export function CommentPanel({
           </button>
           <button
             aria-label={LABEL_TAB_ACTIVITY_ARIA}
-            onClick={() => setActiveTab(TAB_ACTIVITY)}
+            onClick={() => handleTabChange(TAB_ACTIVITY)}
             className={`flex-1 py-2 text-sm font-medium transition-colors ${
               activeTab === TAB_ACTIVITY
                 ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
