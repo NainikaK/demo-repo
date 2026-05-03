@@ -156,8 +156,13 @@ Common issues to check first:
   Header.test.tsx must test the Header component, TaskForm.test.tsx must test TaskForm, etc. \
   Never replace a test for one component with tests for a different component.
 - Use vi.fn() / vi.mock() / vi.stubGlobal() — never jest.*
-Respond ONLY with a valid JSON object — no preamble, no explanation, no markdown fences: \
-{"corrected_content": "<complete corrected TypeScript file content>"}\
+YOUR RESPONSE MUST START WITH { AND END WITH }.
+Do not write any explanation before or after.
+Do not use markdown code fences.
+Do not write "Here is" or any preamble.
+The ONLY thing you output is this exact JSON structure:
+{"corrected_content": "COMPLETE FILE CONTENT HERE"}
+Where COMPLETE FILE CONTENT HERE is the full corrected TypeScript file with all imports and exports.\
 """
 
 _BACKEND_SINGLE_FILE_CORRECTION_PROMPT = """\
@@ -165,9 +170,14 @@ You are a senior QA engineer. A single backend C# test file is failing. \
 Read the test file content and source files carefully. \
 Fix ONLY the test file to match the actual source code — do not modify source files. \
 Common issues: wrong constructor arguments, wrong method names, \
-wrong expected values, missing using statements. \
-Respond ONLY with a valid JSON object — no preamble, no explanation, no markdown fences: \
-{"corrected_content": "<complete corrected C# file content>"}\
+wrong expected values, missing using statements.
+YOUR RESPONSE MUST START WITH { AND END WITH }.
+Do not write any explanation before or after.
+Do not use markdown code fences.
+Do not write "Here is" or any preamble.
+The ONLY thing you output is this exact JSON structure:
+{"corrected_content": "COMPLETE FILE CONTENT HERE"}
+Where COMPLETE FILE CONTENT HERE is the full corrected C# file with all using statements.\
 """
 
 
@@ -179,6 +189,24 @@ def _read_files_from_paths(paths: list[str]) -> dict[str, str]:
             result[path] = git_utils.read_file(path)
         except (FileNotFoundError, RuntimeError):
             pass
+    return result
+
+
+def _read_frontend_context_files() -> dict[str, str]:
+    """Read all .ts/.tsx files from the key frontend source directories."""
+    repo_root = git_utils.get_repo_root()
+    result: dict[str, str] = {}
+    for dir_rel in _FRONTEND_CONTEXT_DIRS:
+        dir_path = repo_root / dir_rel
+        if not dir_path.exists():
+            continue
+        for entry in sorted(dir_path.rglob("*")):
+            if entry.is_file() and entry.suffix in {".ts", ".tsx"}:
+                rel = str(entry.relative_to(repo_root))
+                try:
+                    result[rel] = entry.read_text(encoding="utf-8")
+                except OSError:
+                    pass
     return result
 
 
@@ -271,6 +299,14 @@ _FRONTEND_UTILITY_FILES = [
 ]
 
 _FRONTEND_SOURCE_SUBDIRS: tuple[str, ...] = ("components", "pages", "hooks", "context")
+
+_FRONTEND_CONTEXT_DIRS: tuple[str, ...] = (
+    "demo-app/frontend/src/components",
+    "demo-app/frontend/src/hooks",
+    "demo-app/frontend/src/context",
+    "demo-app/frontend/src/types",
+)
+_MAX_SOURCE_FILES = 40
 
 
 def _infer_component_source(test_rel_path: str) -> str | None:
@@ -460,10 +496,11 @@ def _correct_backend_tests(
 def _extract_corrected_content(raw_text: str, context: str) -> str | None:
     """Extract the corrected file content from a Claude correction response.
 
-    Tries two strategies in order:
+    Tries three strategies in order:
     1. Parse as JSON {"corrected_content": "..."} with leading/trailing prose tolerance.
-    2. Extract code from a TypeScript/TSX/C# markdown code fence as a plain fallback.
-    Returns None if neither strategy yields valid content.
+    2. Extract code from any markdown code fence (any language tag or no tag).
+    3. Find the first contiguous code-like block starting with import/using/export/comment.
+    Returns None if no strategy yields content longer than 100 characters.
     """
     text = _strip_fences(raw_text)
     decoder = json.JSONDecoder()
@@ -478,9 +515,9 @@ def _extract_corrected_content(raw_text: str, context: str) -> str | None:
                     return content
         except json.JSONDecodeError:
             pass
-    # Fallback: extract code from a language-tagged markdown fence in the original response
+    # Fallback 2: extract code from any markdown code fence in the original response
     fence_match = re.search(
-        r"```(?:typescript|tsx|ts|csharp|cs)?\s*\n([\s\S]+?)\n```",
+        r"```(?:[a-zA-Z]*)?\s*\n([\s\S]+?)\n```",
         raw_text,
         re.IGNORECASE,
     )
@@ -488,6 +525,15 @@ def _extract_corrected_content(raw_text: str, context: str) -> str | None:
         code = fence_match.group(1).strip()
         if code:
             return code
+    # Fallback 3: find the first contiguous code-like block
+    code_match = re.search(
+        r"((?:import |using |export |\/\/|\/\*)[\s\S]+)",
+        raw_text,
+    )
+    if code_match:
+        candidate = code_match.group(1).strip()
+        if len(candidate) > 100:
+            return candidate
     print(f"{_LOG_PREFIX} warning: could not parse corrected_content JSON for {context}")
     return None
 
@@ -532,7 +578,16 @@ def _build_test_gen_message(
         + backend_summary.files_modified
     )
     source_files = _read_files_from_paths(all_changed_paths)
+    if len(source_files) < _MAX_SOURCE_FILES:
+        for path, content in _read_frontend_context_files().items():
+            if path not in source_files and len(source_files) < _MAX_SOURCE_FILES:
+                source_files[path] = content
     return json.dumps({
+        "important": (
+            "Generate tests based ONLY on the actual source_files content provided. "
+            "Do not assume any behavior not visible in the source code. "
+            "Every import, every prop name, every string must exactly match what appears in source_files."
+        ),
         "acceptance_criteria": spec.acceptance_criteria,
         "suggested_user_stories": spec.suggested_user_stories,
         "source_files": source_files,

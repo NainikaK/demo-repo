@@ -1030,7 +1030,15 @@ class Orchestrator:
             f"passed={result.passed} "
             f"failed={result.failed}"
         )
-        print(f"{LOG_PREFIX} phase=test_agent test results recorded — pipeline continues for demo (passed={result.passed} failed={result.failed})")
+        if result.failed > 0:
+            failed_cases = [c for c in result.test_cases if c.status.value == "failed"]
+            failure_summary = "; ".join(
+                f"{c.name}: {c.error_message or 'no message'}" for c in failed_cases[:5]
+            )
+            raise RuntimeError(
+                f"Test Agent: {result.failed} test(s) failed — pipeline blocked. "
+                f"First failures: {failure_summary}"
+            )
         return True
 
     def _run_audit_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
