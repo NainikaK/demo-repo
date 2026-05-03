@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import type { ActivityEntry } from '../types';
 import { ACTIVITY_URL } from '../utils/constants';
 
-interface UseActivityResult {
+export interface UseActivityResult {
   entries: ActivityEntry[];
   fetchLoading: boolean;
   fetchError: string | null;

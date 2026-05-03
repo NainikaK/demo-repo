@@ -5,7 +5,7 @@ import {
   LABEL_ACTIVITY_LOADING,
 } from '../utils/strings';
 
-interface ActivityFeedProps {
+export interface ActivityFeedProps {
   entries: ActivityEntry[];
   fetchLoading: boolean;
   fetchError: string | null;

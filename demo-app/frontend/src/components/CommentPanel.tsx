@@ -143,7 +143,7 @@ export function CommentPanel({
             onClick={onClose}
             className="ml-2 shrink-0 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
           >
-            <span aria-hidden="true">×</span>
+            <span aria-hidden="true">&times;</span>
           </button>
         </div>
 
