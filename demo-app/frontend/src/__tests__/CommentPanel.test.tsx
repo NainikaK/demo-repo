@@ -1,78 +1,9 @@
-import React from 'react';
-import { render, screen, act } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { CommentPanel } from '../components/CommentPanel';
+import in `CommentPanel.tsx` is `import { ActivityFeed } from './ActivityFeed'` which is a named export. The mock uses `ActivityFeed: () => React.createElement(...)` which looks correct.
 
-vi.mock('../hooks/useComments', () => ({
-  useComments: () => ({
-    comments: [],
-    fetchLoading: false,
-    fetchError: null,
-    fetchComments: vi.fn().mockResolvedValue(undefined),
-    postComment: vi.fn().mockResolvedValue({ id: 'c1', taskId: 'task-1', text: 'Hello', createdAt: '2024-01-01T00:00:00Z' }),
-  }),
-}));
+The actual issue is that `userEvent.click` needs to be wrapped properly, and after clicking the tab, we need to wait for re-render. The test uses `await userEvent.click(activityTab)` which should handle this. 
 
-vi.mock('../hooks/useActivity', () => ({
-  useActivity: () => ({
-    entries: [],
-    fetchLoading: false,
-    fetchError: null,
-    fetchActivity: vi.fn().mockResolvedValue(undefined),
-  }),
-}));
+Looking at the DOM output, the panel renders correctly with both tabs. After clicking Activity tab, we need `ActivityFeed` to appear. The mock looks correct. 
 
-vi.mock('../components/ActivityFeed', () => ({
-  ActivityFeed: () => React.createElement('div', { 'data-testid': 'activity-feed' }),
-}));
+The issue might be that `useActivity`'s `fetchActivity` mock needs to be a stable function reference. Since the component uses `fetchActivity` in a dependency array of `useEffect`, if the mock returns a new function each time, it could cause issues. Let me fix the mock to use stable references with `vi.fn()`.
 
-const activeTask = { id: 'task-1', title: 'My Task' };
-
-describe('CommentPanel', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('render test - renders the panel with Comments and Activity tabs when activeTask is provided', () => {
-    render(
-      <CommentPanel
-        activeTask={activeTask}
-        onClose={vi.fn()}
-        onCommentAdded={vi.fn()}
-      />
-    );
-
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('My Task')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Show comments tab' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Show activity tab' })).toBeInTheDocument();
-  });
-
-  it('interaction test - clicking the Activity tab shows the activity feed', async () => {
-    render(
-      <CommentPanel
-        activeTask={activeTask}
-        onClose={vi.fn()}
-        onCommentAdded={vi.fn()}
-      />
-    );
-
-    const activityTab = screen.getByRole('button', { name: 'Show activity tab' });
-    await userEvent.click(activityTab);
-
-    expect(screen.getByTestId('activity-feed')).toBeInTheDocument();
-  });
-
-  it('edge case - renders nothing when activeTask is null', () => {
-    const { container } = render(
-      <CommentPanel
-        activeTask={null}
-        onClose={vi.fn()}
-        onCommentAdded={vi.fn()}
-      />
-    );
-
-    expect(container.firstChild).toBeNull();
-  });
-});
+{"corrected_content": "import React from 'react';\nimport { render, screen, act } from '@testing-library/react';\nimport userEvent from '@testing-library/user-event';\nimport { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';\nimport { CommentPanel } from '../components/CommentPanel';\n\nconst mockFetchComments = vi.fn().mockResolvedValue(undefined);\nconst mockPostComment = vi.fn().mockResolvedValue({ id: 'c1', taskId: 'task-1', text: 'Hello', createdAt: '2024-01-01T00:00:00Z' });\nconst mockFetchActivity = vi.fn().mockResolvedValue(undefined);\n\nvi.mock('../hooks/useComments', () => ({\n  useComments: () => ({\n    comments: [],\n    fetchLoading: false,\n    fetchError: null,\n    fetchComments: mockFetchComments,\n    postComment: mockPostComment,\n  }),\n}));\n\nvi.mock('../hooks/useActivity', () => ({\n  useActivity: () => ({\n    entries: [],\n    fetchLoading: false,\n    fetchError: null,\n    fetchActivity: mockFetchActivity,\n  }),\n}));\n\nvi.mock('../components/ActivityFeed', () => ({\n  ActivityFeed: () => React.createElement('div', { 'data-testid': 'activity-feed' }),\n}));\n\nconst activeTask = { id: 'task-1', title: 'My Task' };\n\ndescribe('CommentPanel', () => {\n  afterEach(() => {\n    vi.restoreAllMocks();\n  });\n\n  it('render test - renders the panel with Comments and Activity tabs when activeTask is provided', () => {\n    render(\n      <CommentPanel\n        activeTask={activeTask}\n        onClose={vi.fn()}\n        onCommentAdded={vi.fn()}\n      />\n    );\n\n    expect(screen.getByRole('dialog')).toBeInTheDocument();\n    expect(screen.getByText('My Task')).toBeInTheDocument();\n    expect(screen.getByRole('button', { name: 'Show comments tab' })).toBeInTheDocument();\n    expect(screen.getByRole('button', { name: 'Show activity tab' })).toBeInTheDocument();\n  });\n\n  it('interaction test - clicking the Activity tab shows the activity feed', async () => {\n    const user = userEvent.setup();\n\n    render(\n      <CommentPanel\n        activeTask={activeTask}\n        onClose={vi.fn()}\n        onCommentAdded={vi.fn()}\n      />\n    );\n\n    const activityTab = screen.getByRole('button', { name: 'Show activity tab' });\n    await user.click(activityTab);\n\n    expect(screen.getByTestId('activity-feed')).toBeInTheDocument();\n  });\n\n  it('edge case - renders nothing when activeTask is null', () => {\n    const { container } = render(\n      <CommentPanel\n        activeTask={null}\n        onClose={vi.fn()}\n        onCommentAdded={vi.fn()}\n      />\n    );\n\n    expect(container.firstChild).toBeNull();\n  });\n});\n"}
