@@ -26,4 +26,7 @@ public class TaskDto
 
     /// <summary>Gets or sets the optional name of the user assigned to this task.</summary>
     public string? AssignedTo { get; set; }
+
+    /// <summary>Gets or sets the priority level of the task as a lowercase string (low, medium, high).</summary>
+    public string Priority { get; set; } = "medium";
 }

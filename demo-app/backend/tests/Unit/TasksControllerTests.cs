@@ -53,7 +53,7 @@ public sealed class TasksControllerTests
     {
         var tasks = new List<TaskDto>
         {
-            new() { Id = "1", Title = "Task One", Description = "", Completed = false, CreatedAt = DateTime.UtcNow },
+            new() { Id = "1", Title = "Task One", Description = "", Completed = false, CreatedAt = DateTime.UtcNow, Priority = "medium" },
         };
         _mockService.Setup(s => s.GetAllTasksAsync()).ReturnsAsync(tasks);
 
@@ -68,7 +68,7 @@ public sealed class TasksControllerTests
     [Fact]
     public async Task GetTaskById_ValidId_Returns200WithTask()
     {
-        var task = new TaskDto { Id = "1", Title = "Task One", Description = "", Completed = false, CreatedAt = DateTime.UtcNow };
+        var task = new TaskDto { Id = "1", Title = "Task One", Description = "", Completed = false, CreatedAt = DateTime.UtcNow, Priority = "medium" };
         _mockService.Setup(s => s.GetTaskByIdAsync("1")).ReturnsAsync(task);
 
         var result = await _sut.GetTaskById("1");
@@ -104,6 +104,7 @@ public sealed class TasksControllerTests
             DueDate = "2025-09-01",
             Completed = false,
             CreatedAt = DateTime.UtcNow,
+            Priority = "medium",
         };
         _mockService.Setup(s => s.CreateTaskAsync(dto)).ReturnsAsync(createdTaskDto);
 
@@ -116,6 +117,29 @@ public sealed class TasksControllerTests
         Assert.Equal("Brand New Task", taskDto.Title);
         Assert.Equal("2025-09-01", taskDto.DueDate);
         Assert.False(taskDto.Completed);
+    }
+
+    [Fact]
+    public async Task CreateTask_WithPriority_Returns201WithCorrectPriority()
+    {
+        var dto = new CreateTaskDto { Title = "High Priority Task", Priority = "high" };
+        var createdTaskDto = new TaskDto
+        {
+            Id = "7",
+            Title = "High Priority Task",
+            Description = "",
+            Completed = false,
+            CreatedAt = DateTime.UtcNow,
+            Priority = "high",
+        };
+        _mockService.Setup(s => s.CreateTaskAsync(dto)).ReturnsAsync(createdTaskDto);
+
+        var result = await _sut.CreateTask(dto);
+
+        var createdResult = Assert.IsType<CreatedAtActionResult>(result);
+        Assert.Equal(201, createdResult.StatusCode);
+        var taskDto = Assert.IsType<TaskDto>(createdResult.Value);
+        Assert.Equal("high", taskDto.Priority);
     }
 
     [Fact]
@@ -154,6 +178,7 @@ public sealed class TasksControllerTests
             DueDate = null,
             Completed = false,
             CreatedAt = DateTime.UtcNow,
+            Priority = "medium",
         };
         _mockService.Setup(s => s.CreateTaskAsync(dto)).ReturnsAsync(createdTaskDto);
 
@@ -176,6 +201,7 @@ public sealed class TasksControllerTests
             Description = "",
             Completed = false,
             CreatedAt = DateTime.UtcNow,
+            Priority = "medium",
         };
         _mockService.Setup(s => s.CreateTaskAsync(dto)).ReturnsAsync(createdTaskDto);
 
@@ -184,6 +210,60 @@ public sealed class TasksControllerTests
         var createdResult = Assert.IsType<CreatedAtActionResult>(result);
         Assert.Equal(nameof(_sut.GetTaskById), createdResult.ActionName);
         Assert.Equal("6", createdResult.RouteValues!["id"]);
+    }
+
+    // ── PATCH /api/v1/tasks/{id} ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task UpdateTaskPriority_ValidPriority_Returns200WithUpdatedTask()
+    {
+        var dto = new UpdateTaskPriorityDto { Priority = "high" };
+        var updatedTaskDto = new TaskDto
+        {
+            Id = "2",
+            Title = "Write unit tests",
+            Description = "Cover all service methods.",
+            Completed = false,
+            CreatedAt = DateTime.UtcNow,
+            Priority = "high",
+        };
+        _mockService
+            .Setup(s => s.UpdateTaskPriorityAsync("2", dto))
+            .ReturnsAsync(new UpdateTaskPriorityResult.Success(updatedTaskDto));
+
+        var result = await _sut.UpdateTaskPriority("2", dto);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(200, okResult.StatusCode);
+        var taskDto = Assert.IsType<TaskDto>(okResult.Value);
+        Assert.Equal("high", taskDto.Priority);
+    }
+
+    [Fact]
+    public async Task UpdateTaskPriority_NonExistentId_Returns404()
+    {
+        var dto = new UpdateTaskPriorityDto { Priority = "low" };
+        _mockService
+            .Setup(s => s.UpdateTaskPriorityAsync("nonexistent", dto))
+            .ReturnsAsync(new UpdateTaskPriorityResult.NotFound());
+
+        var result = await _sut.UpdateTaskPriority("nonexistent", dto);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdateTaskPriority_InvalidPriority_Returns400()
+    {
+        var dto = new UpdateTaskPriorityDto { Priority = "urgent" };
+        _mockService
+            .Setup(s => s.UpdateTaskPriorityAsync("1", dto))
+            .ReturnsAsync(new UpdateTaskPriorityResult.InvalidPriority());
+
+        var result = await _sut.UpdateTaskPriority("1", dto);
+
+        var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal(400, badRequestResult.StatusCode);
     }
 
     // ── PATCH /api/v1/tasks/{id}/complete ────────────────────────────────────────
@@ -198,6 +278,7 @@ public sealed class TasksControllerTests
             Description = "Cover all service methods.",
             Completed = true,
             CreatedAt = DateTime.UtcNow,
+            Priority = "medium",
         };
         _mockService
             .Setup(s => s.CompleteTaskAsync("2"))

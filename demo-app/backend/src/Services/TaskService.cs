@@ -1,6 +1,7 @@
 using System.Globalization;
 using DemoApp.Api.Common;
 using DemoApp.Api.DTOs;
+using DemoApp.Api.Models;
 using Microsoft.Extensions.Logging;
 using TaskModel = DemoApp.Api.Models.Task;
 
@@ -13,6 +14,10 @@ namespace DemoApp.Api.Services;
 /// </summary>
 public sealed class TaskService : ITaskService
 {
+    private const string PriorityLow = "low";
+    private const string PriorityMedium = "medium";
+    private const string PriorityHigh = "high";
+
     private readonly List<TaskModel> _tasks;
     private int _nextId;
     private readonly object _lock = new();
@@ -33,6 +38,7 @@ public sealed class TaskService : ITaskService
                 Description = "Initialise the repository and configure the pipeline.",
                 Completed = true,
                 CreatedAt = new DateTime(2024, 1, 10, 9, 0, 0, DateTimeKind.Utc),
+                Priority = TaskPriority.Medium,
             },
             new TaskModel
             {
@@ -41,6 +47,7 @@ public sealed class TaskService : ITaskService
                 Description = "Cover all service methods with xUnit tests.",
                 Completed = false,
                 CreatedAt = new DateTime(2024, 1, 12, 10, 30, 0, DateTimeKind.Utc),
+                Priority = TaskPriority.Medium,
             },
             new TaskModel
             {
@@ -49,6 +56,7 @@ public sealed class TaskService : ITaskService
                 Description = "Push the build to the staging environment and verify.",
                 Completed = false,
                 CreatedAt = new DateTime(2024, 1, 15, 14, 0, 0, DateTimeKind.Utc),
+                Priority = TaskPriority.Medium,
             },
         ];
 
@@ -107,6 +115,7 @@ public sealed class TaskService : ITaskService
             TaskModel task;
             lock (_lock)
             {
+                var priority = ParsePriority(dto.Priority) ?? TaskPriority.Medium;
                 task = new TaskModel
                 {
                     Id = (_nextId++).ToString(),
@@ -116,6 +125,7 @@ public sealed class TaskService : ITaskService
                     Completed = false,
                     CreatedAt = DateTime.UtcNow,
                     AssignedTo = string.IsNullOrWhiteSpace(dto.AssignedTo) ? null : dto.AssignedTo.Trim(),
+                    Priority = priority,
                 };
                 _tasks.Add(task);
             }
@@ -164,6 +174,42 @@ public sealed class TaskService : ITaskService
         }
     }
 
+    /// <summary>Updates the priority of an existing task.</summary>
+    /// <param name="id">The task identifier.</param>
+    /// <param name="dto">The DTO containing the new priority value.</param>
+    public Task<UpdateTaskPriorityResult> UpdateTaskPriorityAsync(string id, UpdateTaskPriorityDto dto)
+    {
+        try
+        {
+            lock (_lock)
+            {
+                var task = _tasks.FirstOrDefault(t => t.Id == id);
+
+                if (task is null)
+                {
+                    _logger.LogWarning("UpdateTaskPriority: task {Id} not found.", id);
+                    return Task.FromResult<UpdateTaskPriorityResult>(new UpdateTaskPriorityResult.NotFound());
+                }
+
+                var priority = ParsePriority(dto.Priority);
+                if (priority is null)
+                {
+                    _logger.LogWarning("UpdateTaskPriority: invalid priority value '{Priority}'.", dto.Priority);
+                    return Task.FromResult<UpdateTaskPriorityResult>(new UpdateTaskPriorityResult.InvalidPriority());
+                }
+
+                task.Priority = priority.Value;
+                _logger.LogInformation("Task {Id} priority updated to {Priority}.", id, priority);
+                return Task.FromResult<UpdateTaskPriorityResult>(new UpdateTaskPriorityResult.Success(MapToDto(task)));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error while updating priority for task {Id}.", id);
+            throw;
+        }
+    }
+
     private static TaskDto MapToDto(TaskModel task) =>
         new()
         {
@@ -176,7 +222,31 @@ public sealed class TaskService : ITaskService
             Completed = task.Completed,
             CreatedAt = task.CreatedAt,
             AssignedTo = task.AssignedTo,
+            Priority = PriorityToString(task.Priority),
         };
+
+    private static string PriorityToString(TaskPriority priority) => priority switch
+    {
+        TaskPriority.Low => PriorityLow,
+        TaskPriority.High => PriorityHigh,
+        _ => PriorityMedium,
+    };
+
+    private static TaskPriority? ParsePriority(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim().ToLowerInvariant() switch
+        {
+            PriorityLow => TaskPriority.Low,
+            PriorityMedium => TaskPriority.Medium,
+            PriorityHigh => TaskPriority.High,
+            _ => null,
+        };
+    }
 
     private static DateOnly? ParseDueDate(string? value)
     {

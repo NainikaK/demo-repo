@@ -1,6 +1,5 @@
 using DemoApp.Api.DTOs;
 using DemoApp.Api.Services;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -124,6 +123,54 @@ public sealed class TaskServiceTests
     }
 
     [Fact]
+    public async Task CreateTaskAsync_NoPrioritySpecified_DefaultsToMedium()
+    {
+        var dto = new CreateTaskDto { Title = "Default Priority Task", Priority = null };
+
+        var task = await _sut.CreateTaskAsync(dto);
+
+        Assert.Equal("medium", task.Priority);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_LowPrioritySpecified_PersistsLow()
+    {
+        var dto = new CreateTaskDto { Title = "Low Priority Task", Priority = "low" };
+
+        var task = await _sut.CreateTaskAsync(dto);
+
+        Assert.Equal("low", task.Priority);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_HighPrioritySpecified_PersistsHigh()
+    {
+        var dto = new CreateTaskDto { Title = "High Priority Task", Priority = "high" };
+
+        var task = await _sut.CreateTaskAsync(dto);
+
+        Assert.Equal("high", task.Priority);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_MediumPrioritySpecified_PersistsMedium()
+    {
+        var dto = new CreateTaskDto { Title = "Medium Priority Task", Priority = "medium" };
+
+        var task = await _sut.CreateTaskAsync(dto);
+
+        Assert.Equal("medium", task.Priority);
+    }
+
+    [Fact]
+    public async Task GetAllTasksAsync_AllSeededTasks_HaveMediumPriority()
+    {
+        var tasks = await _sut.GetAllTasksAsync();
+
+        Assert.All(tasks, t => Assert.Equal("medium", t.Priority));
+    }
+
+    [Fact]
     public async Task CompleteTaskAsync_PendingTask_ReturnsSuccessWithCompletedTask()
     {
         var result = await _sut.CompleteTaskAsync("2");
@@ -157,5 +204,49 @@ public sealed class TaskServiceTests
         var result = await _sut.CompleteTaskAsync("nonexistent");
 
         Assert.IsType<CompleteTaskResult.NotFound>(result);
+    }
+
+    [Fact]
+    public async Task UpdateTaskPriorityAsync_ValidPriority_ReturnsSuccess()
+    {
+        var dto = new UpdateTaskPriorityDto { Priority = "high" };
+
+        var result = await _sut.UpdateTaskPriorityAsync("2", dto);
+
+        var success = Assert.IsType<UpdateTaskPriorityResult.Success>(result);
+        Assert.Equal("high", success.Task.Priority);
+        Assert.Equal("2", success.Task.Id);
+    }
+
+    [Fact]
+    public async Task UpdateTaskPriorityAsync_ValidPriority_PersistsPriorityChange()
+    {
+        var dto = new UpdateTaskPriorityDto { Priority = "low" };
+
+        await _sut.UpdateTaskPriorityAsync("3", dto);
+
+        var task = await _sut.GetTaskByIdAsync("3");
+        Assert.NotNull(task);
+        Assert.Equal("low", task.Priority);
+    }
+
+    [Fact]
+    public async Task UpdateTaskPriorityAsync_NonExistentId_ReturnsNotFound()
+    {
+        var dto = new UpdateTaskPriorityDto { Priority = "low" };
+
+        var result = await _sut.UpdateTaskPriorityAsync("nonexistent", dto);
+
+        Assert.IsType<UpdateTaskPriorityResult.NotFound>(result);
+    }
+
+    [Fact]
+    public async Task UpdateTaskPriorityAsync_InvalidPriority_ReturnsInvalidPriority()
+    {
+        var dto = new UpdateTaskPriorityDto { Priority = "urgent" };
+
+        var result = await _sut.UpdateTaskPriorityAsync("1", dto);
+
+        Assert.IsType<UpdateTaskPriorityResult.InvalidPriority>(result);
     }
 }

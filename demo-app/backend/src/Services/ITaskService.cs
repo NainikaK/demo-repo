@@ -19,6 +19,22 @@ public abstract record CompleteTaskResult
 }
 
 /// <summary>
+/// Discriminated-union result for the update-task-priority operation.
+/// </summary>
+public abstract record UpdateTaskPriorityResult
+{
+    /// <summary>The task was not found.</summary>
+    public sealed record NotFound : UpdateTaskPriorityResult;
+
+    /// <summary>The priority value supplied was invalid.</summary>
+    public sealed record InvalidPriority : UpdateTaskPriorityResult;
+
+    /// <summary>The priority was updated successfully.</summary>
+    /// <param name="Task">The updated task DTO.</param>
+    public sealed record Success(TaskDto Task) : UpdateTaskPriorityResult;
+}
+
+/// <summary>
 /// Defines operations for managing tasks.
 /// </summary>
 public interface ITaskService
@@ -37,4 +53,9 @@ public interface ITaskService
     /// <summary>Marks an existing task as complete.</summary>
     /// <param name="id">The task identifier.</param>
     Task<CompleteTaskResult> CompleteTaskAsync(string id);
+
+    /// <summary>Updates the priority of an existing task.</summary>
+    /// <param name="id">The task identifier.</param>
+    /// <param name="dto">The DTO containing the new priority value.</param>
+    Task<UpdateTaskPriorityResult> UpdateTaskPriorityAsync(string id, UpdateTaskPriorityDto dto);
 }

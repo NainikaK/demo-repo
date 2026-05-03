@@ -20,4 +20,10 @@ public class CreateTaskDto
 
     /// <summary>Gets or sets the optional name of the user to assign the task to.</summary>
     public string? AssignedTo { get; set; }
+
+    /// <summary>
+    /// Gets or sets the priority of the task. Allowed values: low, medium, high.
+    /// Defaults to medium when not specified.
+    /// </summary>
+    public string? Priority { get; set; }
 }

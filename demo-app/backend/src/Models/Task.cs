@@ -25,4 +25,7 @@ public class Task
 
     /// <summary>Gets or sets the optional name of the user assigned to this task.</summary>
     public string? AssignedTo { get; set; }
+
+    /// <summary>Gets or sets the priority level of the task. Defaults to <see cref="TaskPriority.Medium"/>.</summary>
+    public TaskPriority Priority { get; set; } = TaskPriority.Medium;
 }

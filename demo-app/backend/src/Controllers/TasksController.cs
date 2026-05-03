@@ -99,6 +99,38 @@ public sealed class TasksController : ControllerBase
         }
     }
 
+    /// <summary>Updates the priority of an existing task.</summary>
+    /// <param name="id">The task identifier.</param>
+    /// <param name="dto">The DTO containing the new priority value.</param>
+    /// <returns>The updated task, or 404 if not found, or 400 if priority is invalid.</returns>
+    /// <response code="200">Task priority updated successfully.</response>
+    /// <response code="400">Priority value is invalid.</response>
+    /// <response code="404">No task found with the given ID.</response>
+    [HttpPatch("{id}")]
+    [ProducesResponseType(typeof(TaskDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateTaskPriority(string id, [FromBody] UpdateTaskPriorityDto dto)
+    {
+        try
+        {
+            var result = await _taskService.UpdateTaskPriorityAsync(id, dto);
+
+            return result switch
+            {
+                UpdateTaskPriorityResult.NotFound => NotFound(),
+                UpdateTaskPriorityResult.InvalidPriority => BadRequest(new { message = "Invalid priority value. Allowed values: low, medium, high." }),
+                UpdateTaskPriorityResult.Success success => Ok(success.Task),
+                _ => StatusCode(StatusCodes.Status500InternalServerError),
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error in {Action} for id {Id}.", nameof(UpdateTaskPriority), id);
+            return StatusCode(StatusCodes.Status500InternalServerError);
+        }
+    }
+
     /// <summary>Marks a task as complete.</summary>
     /// <param name="id">The task identifier.</param>
     /// <returns>The updated task with completed set to true, or 404 if not found, or 409 if already completed.</returns>
