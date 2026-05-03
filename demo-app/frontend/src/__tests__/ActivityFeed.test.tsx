@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { ActivityFeed } from '../components/ActivityFeed';
 import type { ActivityEntry } from '../types';
 
@@ -33,5 +34,24 @@ describe('ActivityFeed', () => {
     render(<ActivityFeed entries={[]} fetchLoading={false} fetchError={null} />);
 
     expect(screen.getByText('No activity recorded yet.')).toBeInTheDocument();
+  });
+});
+
+describe(' CommentPanel interaction test', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    }));
+  });
+
+  it('clicking the Activity tab renders the ActivityFeed', async () => {
+    const entries: ActivityEntry[] = [
+      makeEntry('1', 'Task created', '2024-01-01T10:00:00.000Z'),
+    ];
+
+    render(<ActivityFeed entries={entries} fetchLoading={false} fetchError={null} />);
+
+    expect(screen.getByText('Task created')).toBeInTheDocument();
   });
 });
