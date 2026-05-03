@@ -11,32 +11,46 @@ namespace DemoApp.Tests.Unit;
 
 public sealed class CommentsControllerTests
 {
-    private readonly Mock<ICommentService> _mockService;
+    private readonly Mock<ICommentService> _mockCommentService;
+    private readonly Mock<ITaskService> _mockTaskService;
     private readonly CommentsController _sut;
 
     public CommentsControllerTests()
     {
-        _mockService = new Mock<ICommentService>();
+        _mockCommentService = new Mock<ICommentService>();
+        _mockTaskService = new Mock<ITaskService>();
         var mockLogger = new Mock<ILogger<CommentsController>>();
-        _sut = new CommentsController(_mockService.Object, mockLogger.Object);
+        _sut = new CommentsController(
+            _mockCommentService.Object,
+            _mockTaskService.Object,
+            mockLogger.Object);
         _sut.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
         };
     }
 
+    private static TaskDto MakeTaskDto(string id = "task-1") => new()
+    {
+        Id = id,
+        Title = "Test Task",
+        Description = string.Empty,
+        Completed = false,
+        CreatedAt = DateTime.UtcNow,
+        Priority = "medium",
+    };
+
     // GET /api/v1/tasks/{taskId}/comments
 
     [Fact]
     public async Task GetComments_TaskExists_Returns200WithCommentList()
     {
-        var comments = new List<CommentDto>
+        _mockTaskService.Setup(s => s.GetTaskByIdAsync("task-1")).ReturnsAsync(MakeTaskDto());
+        IReadOnlyList<CommentDto> comments = new List<CommentDto>
         {
             new() { Id = "c1", TaskId = "task-1", Text = "Hello", CreatedAt = DateTime.UtcNow },
         };
-        _mockService
-            .Setup(s => s.GetCommentsByTaskIdAsync("task-1"))
-            .ReturnsAsync(comments);
+        _mockCommentService.Setup(s => s.GetCommentsByTaskIdAsync("task-1")).ReturnsAsync(comments);
 
         var result = await _sut.GetComments("task-1");
 
@@ -47,19 +61,19 @@ public sealed class CommentsControllerTests
     [Fact]
     public async Task GetComments_TaskDoesNotExist_Returns404()
     {
-        _mockService
-            .Setup(s => s.GetCommentsByTaskIdAsync("missing"))
-            .ReturnsAsync((IReadOnlyList<CommentDto>?)null);
+        _mockTaskService.Setup(s => s.GetTaskByIdAsync("missing")).ReturnsAsync((TaskDto?)null);
 
         var result = await _sut.GetComments("missing");
 
         Assert.IsType<NotFoundResult>(result.Result);
+        _mockCommentService.Verify(s => s.GetCommentsByTaskIdAsync(It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
     public async Task GetComments_ServiceThrows_Returns500()
     {
-        _mockService
+        _mockTaskService.Setup(s => s.GetTaskByIdAsync("task-1")).ReturnsAsync(MakeTaskDto());
+        _mockCommentService
             .Setup(s => s.GetCommentsByTaskIdAsync("task-1"))
             .ThrowsAsync(new InvalidOperationException("Storage failure"));
 
@@ -82,9 +96,8 @@ public sealed class CommentsControllerTests
             Text = "A valid comment",
             CreatedAt = DateTime.UtcNow,
         };
-        _mockService
-            .Setup(s => s.AddCommentAsync("task-1", dto.Text))
-            .ReturnsAsync(created);
+        _mockTaskService.Setup(s => s.GetTaskByIdAsync("task-1")).ReturnsAsync(MakeTaskDto());
+        _mockCommentService.Setup(s => s.AddCommentAsync("task-1", dto.Text)).ReturnsAsync(created);
 
         var result = await _sut.CreateComment("task-1", dto);
 
@@ -99,13 +112,12 @@ public sealed class CommentsControllerTests
     public async Task CreateComment_TaskDoesNotExist_Returns404()
     {
         var dto = new CreateCommentDto { Text = "Hello" };
-        _mockService
-            .Setup(s => s.AddCommentAsync("missing", dto.Text))
-            .ReturnsAsync((CommentDto?)null);
+        _mockTaskService.Setup(s => s.GetTaskByIdAsync("missing")).ReturnsAsync((TaskDto?)null);
 
         var result = await _sut.CreateComment("missing", dto);
 
         Assert.IsType<NotFoundResult>(result.Result);
+        _mockCommentService.Verify(s => s.AddCommentAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
@@ -118,14 +130,15 @@ public sealed class CommentsControllerTests
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
         Assert.Equal(400, badRequest.StatusCode);
-        _mockService.Verify(s => s.AddCommentAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        _mockCommentService.Verify(s => s.AddCommentAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
     public async Task CreateComment_ServiceThrows_Returns500()
     {
         var dto = new CreateCommentDto { Text = "Hello" };
-        _mockService
+        _mockTaskService.Setup(s => s.GetTaskByIdAsync("task-1")).ReturnsAsync(MakeTaskDto());
+        _mockCommentService
             .Setup(s => s.AddCommentAsync("task-1", dto.Text))
             .ThrowsAsync(new InvalidOperationException("Unexpected"));
 

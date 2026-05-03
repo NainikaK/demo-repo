@@ -14,13 +14,16 @@ namespace DemoApp.Tests.Unit;
 public sealed class TasksControllerTests
 {
     private readonly Mock<ITaskService> _mockService;
+    private readonly Mock<ICommentService> _mockCommentService;
     private readonly TasksController _sut;
 
     public TasksControllerTests()
     {
         _mockService = new Mock<ITaskService>();
+        _mockCommentService = new Mock<ICommentService>();
+        _mockCommentService.Setup(s => s.GetCommentCountAsync(It.IsAny<string>())).ReturnsAsync(0);
         var mockLogger = new Mock<ILogger<TasksController>>();
-        _sut = new TasksController(_mockService.Object, mockLogger.Object);
+        _sut = new TasksController(_mockService.Object, _mockCommentService.Object, mockLogger.Object);
 
         var problemDetailsFactory = new Mock<ProblemDetailsFactory>();
         problemDetailsFactory

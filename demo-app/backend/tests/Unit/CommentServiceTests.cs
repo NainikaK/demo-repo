@@ -1,39 +1,17 @@
-using DemoApp.Api.DTOs;
-using DemoApp.Api.Models;
 using DemoApp.Api.Services;
-using Moq;
 using Xunit;
 
 namespace DemoApp.Tests.Unit;
 
 public sealed class CommentServiceTests
 {
-    private readonly Mock<ITaskService> _mockTaskService;
-    private readonly CommentService _sut;
-
-    public CommentServiceTests()
-    {
-        _mockTaskService = new Mock<ITaskService>();
-        _sut = new CommentService(_mockTaskService.Object);
-    }
-
-    private static TaskDto MakeTaskDto(string id = "task-1") => new()
-    {
-        Id = id,
-        Title = "Test Task",
-        Description = "",
-        Completed = false,
-        CreatedAt = DateTime.UtcNow,
-        Priority = "medium",
-    };
+    private readonly CommentService _sut = new();
 
     // GetCommentsByTaskIdAsync
 
     [Fact]
-    public async Task GetCommentsByTaskIdAsync_TaskExists_ReturnsEmptyList()
+    public async Task GetCommentsByTaskIdAsync_NoComments_ReturnsEmptyList()
     {
-        _mockTaskService.Setup(s => s.GetTaskById("task-1")).Returns(MakeTaskDto());
-
         var result = await _sut.GetCommentsByTaskIdAsync("task-1");
 
         Assert.NotNull(result);
@@ -41,51 +19,57 @@ public sealed class CommentServiceTests
     }
 
     [Fact]
-    public async Task GetCommentsByTaskIdAsync_TaskDoesNotExist_ReturnsNull()
+    public async Task GetCommentsByTaskIdAsync_UnknownTask_ReturnsEmptyList()
     {
-        _mockTaskService.Setup(s => s.GetTaskById("missing")).Returns((TaskDto?)null);
+        var result = await _sut.GetCommentsByTaskIdAsync("does-not-exist");
 
-        var result = await _sut.GetCommentsByTaskIdAsync("missing");
-
-        Assert.Null(result);
+        Assert.NotNull(result);
+        Assert.Empty(result);
     }
 
     [Fact]
     public async Task GetCommentsByTaskIdAsync_AfterAddingComment_ReturnsComment()
     {
-        _mockTaskService.Setup(s => s.GetTaskById("task-1")).Returns(MakeTaskDto());
         await _sut.AddCommentAsync("task-1", "Hello");
 
         var result = await _sut.GetCommentsByTaskIdAsync("task-1");
 
-        Assert.NotNull(result);
         Assert.Single(result);
         Assert.Equal("Hello", result[0].Text);
+        Assert.Equal("task-1", result[0].TaskId);
+    }
+
+    [Fact]
+    public async Task GetCommentsByTaskIdAsync_OnlyReturnsCommentsForRequestedTask()
+    {
+        await _sut.AddCommentAsync("task-1", "For task 1");
+        await _sut.AddCommentAsync("task-2", "For task 2");
+
+        var result = await _sut.GetCommentsByTaskIdAsync("task-1");
+
+        Assert.Single(result);
+        Assert.Equal("For task 1", result[0].Text);
     }
 
     // AddCommentAsync
 
     [Fact]
-    public async Task AddCommentAsync_TaskExists_ReturnsNewComment()
+    public async Task AddCommentAsync_ValidInput_ReturnsNewComment()
     {
-        _mockTaskService.Setup(s => s.GetTaskById("task-1")).Returns(MakeTaskDto());
-
         var result = await _sut.AddCommentAsync("task-1", "My comment");
 
-        Assert.NotNull(result);
         Assert.Equal("task-1", result.TaskId);
         Assert.Equal("My comment", result.Text);
         Assert.False(string.IsNullOrEmpty(result.Id));
     }
 
     [Fact]
-    public async Task AddCommentAsync_TaskDoesNotExist_ReturnsNull()
+    public async Task AddCommentAsync_AssignsUniqueIds()
     {
-        _mockTaskService.Setup(s => s.GetTaskById("missing")).Returns((TaskDto?)null);
+        var first = await _sut.AddCommentAsync("task-1", "First");
+        var second = await _sut.AddCommentAsync("task-1", "Second");
 
-        var result = await _sut.AddCommentAsync("missing", "Some text");
-
-        Assert.Null(result);
+        Assert.NotEqual(first.Id, second.Id);
     }
 
     // GetCommentCountAsync
@@ -101,12 +85,22 @@ public sealed class CommentServiceTests
     [Fact]
     public async Task GetCommentCountAsync_AfterAddingTwoComments_ReturnsTwo()
     {
-        _mockTaskService.Setup(s => s.GetTaskById("task-1")).Returns(MakeTaskDto());
         await _sut.AddCommentAsync("task-1", "First");
         await _sut.AddCommentAsync("task-1", "Second");
 
         var result = await _sut.GetCommentCountAsync("task-1");
 
         Assert.Equal(2, result);
+    }
+
+    [Fact]
+    public async Task GetCommentCountAsync_DoesNotCountOtherTaskComments()
+    {
+        await _sut.AddCommentAsync("task-1", "Belongs to task-1");
+        await _sut.AddCommentAsync("task-2", "Belongs to task-2");
+
+        var result = await _sut.GetCommentCountAsync("task-1");
+
+        Assert.Equal(1, result);
     }
 }

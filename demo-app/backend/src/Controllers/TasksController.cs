@@ -13,18 +13,21 @@ namespace DemoApp.Api.Controllers;
 public sealed class TasksController : ControllerBase
 {
     private readonly ITaskService _taskService;
+    private readonly ICommentService _commentService;
     private readonly ILogger<TasksController> _logger;
 
-    /// <summary>Initialises the controller with the task service.</summary>
+    /// <summary>Initialises the controller with task and comment services.</summary>
     /// <param name="taskService">The task service.</param>
+    /// <param name="commentService">The comment service, used to populate comment counts.</param>
     /// <param name="logger">The logger instance.</param>
-    public TasksController(ITaskService taskService, ILogger<TasksController> logger)
+    public TasksController(ITaskService taskService, ICommentService commentService, ILogger<TasksController> logger)
     {
         _taskService = taskService;
+        _commentService = commentService;
         _logger = logger;
     }
 
-    /// <summary>Returns all tasks.</summary>
+    /// <summary>Returns all tasks with their current comment counts.</summary>
     /// <returns>A list of all tasks.</returns>
     /// <response code="200">Tasks retrieved successfully.</response>
     [HttpGet]
@@ -33,7 +36,12 @@ public sealed class TasksController : ControllerBase
     {
         try
         {
-            var tasks = await _taskService.GetAllTasksAsync();
+            var tasks = (await _taskService.GetAllTasksAsync()).ToList();
+            foreach (var task in tasks)
+            {
+                task.CommentCount = await _commentService.GetCommentCountAsync(task.Id);
+            }
+
             return Ok(tasks);
         }
         catch (Exception ex)
@@ -43,7 +51,7 @@ public sealed class TasksController : ControllerBase
         }
     }
 
-    /// <summary>Returns a single task by ID.</summary>
+    /// <summary>Returns a single task by ID with its current comment count.</summary>
     /// <param name="id">The task identifier.</param>
     /// <returns>The task if found, or 404 if not.</returns>
     /// <response code="200">Task retrieved successfully.</response>
@@ -61,6 +69,7 @@ public sealed class TasksController : ControllerBase
                 return NotFound();
             }
 
+            task.CommentCount = await _commentService.GetCommentCountAsync(id);
             return Ok(task);
         }
         catch (Exception ex)

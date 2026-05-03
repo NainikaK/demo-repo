@@ -5,31 +5,16 @@ namespace DemoApp.Api.Services;
 
 /// <summary>
 /// In-memory implementation of <see cref="ICommentService"/>.
+/// Task existence is the caller's responsibility — this service stores and retrieves comments only.
 /// </summary>
 public class CommentService : ICommentService
 {
-    private readonly ITaskService _taskService;
     private readonly List<Comment> _comments = [];
     private readonly object _lock = new();
 
-    /// <summary>
-    /// Initializes a new instance of <see cref="CommentService"/>.
-    /// </summary>
-    /// <param name="taskService">The task service used to verify task existence.</param>
-    public CommentService(ITaskService taskService)
-    {
-        _taskService = taskService;
-    }
-
     /// <inheritdoc />
-    public Task<IReadOnlyList<CommentDto>?> GetCommentsByTaskIdAsync(string taskId)
+    public Task<IReadOnlyList<CommentDto>> GetCommentsByTaskIdAsync(string taskId)
     {
-        var task = _taskService.GetTaskById(taskId);
-        if (task is null)
-        {
-            return Task.FromResult<IReadOnlyList<CommentDto>?>(null);
-        }
-
         IReadOnlyList<CommentDto> result;
         lock (_lock)
         {
@@ -41,18 +26,12 @@ public class CommentService : ICommentService
                 .AsReadOnly();
         }
 
-        return Task.FromResult<IReadOnlyList<CommentDto>?>(result);
+        return Task.FromResult(result);
     }
 
     /// <inheritdoc />
-    public Task<CommentDto?> AddCommentAsync(string taskId, string text)
+    public Task<CommentDto> AddCommentAsync(string taskId, string text)
     {
-        var task = _taskService.GetTaskById(taskId);
-        if (task is null)
-        {
-            return Task.FromResult<CommentDto?>(null);
-        }
-
         var comment = new Comment
         {
             Id = Guid.NewGuid().ToString(),
@@ -66,7 +45,7 @@ public class CommentService : ICommentService
             _comments.Add(comment);
         }
 
-        return Task.FromResult<CommentDto?>(MapToDto(comment));
+        return Task.FromResult(MapToDto(comment));
     }
 
     /// <inheritdoc />

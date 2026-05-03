@@ -12,16 +12,22 @@ namespace DemoApp.Api.Controllers;
 public class CommentsController : ControllerBase
 {
     private readonly ICommentService _commentService;
+    private readonly ITaskService _taskService;
     private readonly ILogger<CommentsController> _logger;
 
     /// <summary>
     /// Initializes a new instance of <see cref="CommentsController"/>.
     /// </summary>
     /// <param name="commentService">The comment service.</param>
+    /// <param name="taskService">The task service, used to verify task existence.</param>
     /// <param name="logger">The logger.</param>
-    public CommentsController(ICommentService commentService, ILogger<CommentsController> logger)
+    public CommentsController(
+        ICommentService commentService,
+        ITaskService taskService,
+        ILogger<CommentsController> logger)
     {
         _commentService = commentService;
+        _taskService = taskService;
         _logger = logger;
     }
 
@@ -29,7 +35,7 @@ public class CommentsController : ControllerBase
     /// Retrieves all comments for a specific task.
     /// </summary>
     /// <param name="taskId">The unique identifier of the task.</param>
-    /// <returns>A list of comment DTOs.</returns>
+    /// <returns>A list of comment DTOs, or 404 if the task does not exist.</returns>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<CommentDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -38,12 +44,13 @@ public class CommentsController : ControllerBase
     {
         try
         {
-            var comments = await _commentService.GetCommentsByTaskIdAsync(taskId);
-            if (comments is null)
+            var task = await _taskService.GetTaskByIdAsync(taskId);
+            if (task is null)
             {
                 return NotFound();
             }
 
+            var comments = await _commentService.GetCommentsByTaskIdAsync(taskId);
             return Ok(comments);
         }
         catch (Exception ex)
@@ -58,7 +65,7 @@ public class CommentsController : ControllerBase
     /// </summary>
     /// <param name="taskId">The unique identifier of the task.</param>
     /// <param name="dto">The create comment payload.</param>
-    /// <returns>The newly created comment DTO.</returns>
+    /// <returns>The newly created comment DTO, or 404 if the task does not exist.</returns>
     [HttpPost]
     [ProducesResponseType(typeof(CommentDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -73,12 +80,13 @@ public class CommentsController : ControllerBase
 
         try
         {
-            var comment = await _commentService.AddCommentAsync(taskId, dto.Text);
-            if (comment is null)
+            var task = await _taskService.GetTaskByIdAsync(taskId);
+            if (task is null)
             {
                 return NotFound();
             }
 
+            var comment = await _commentService.AddCommentAsync(taskId, dto.Text);
             return CreatedAtAction(nameof(GetComments), new { taskId }, comment);
         }
         catch (Exception ex)

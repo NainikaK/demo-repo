@@ -40,7 +40,6 @@ _MAX_TOKENS = 16000
 _SPLIT_MAX_TOKENS = 16000
 _CORRECTION_MAX_ATTEMPTS = 5
 _FRONTEND_TEST_DIR = "demo-app/frontend/src/__tests__"
-_BACKEND_TEST_DIR = "demo-app/backend/tests/Unit"
 _BACKEND_TEST_ROOT = "demo-app/backend/tests"
 _BRANCH_PREFIX = "feature"
 _MAX_SLUG_LENGTH = 30
@@ -850,6 +849,9 @@ def _run_backend_tests(backend_summary: ChangeSummary) -> list[TestCase]:
     backend_dir = git_utils.get_repo_root() / "demo-app" / "backend"
     results_dir = backend_dir / "TestResults"
     results_file = results_dir / "test-results.trx"
+    # Delete stale results so a build failure cannot silently return old passing results
+    if results_file.exists():
+        results_file.unlink()
     try:
         proc = subprocess.run(
             [
