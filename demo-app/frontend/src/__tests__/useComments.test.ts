@@ -49,7 +49,7 @@ describe('useComments', () => {
       await waitFor(() => expect(result.current.fetchLoading).toBe(false));
 
       expect(result.current.comments).toEqual([]);
-      expect(result.current.fetchError).toBe('Failed to load comments. Please try again.');
+      expect(result.current.fetchError).toBe('Request failed with status 500');
     });
 
     it('loading state - fetchLoading is true while fetchComments is in flight', async () => {

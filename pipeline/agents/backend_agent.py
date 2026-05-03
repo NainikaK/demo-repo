@@ -150,6 +150,16 @@ def run(
     print(f"{_LOG_PREFIX} validating API contracts")
     contract_validation = _validate_api_contracts(lld, frontend_summary, file_map, anthropic_client)
 
+    if contract_validation.startswith("MISMATCHES"):
+        print(f"{_LOG_PREFIX} applying contract mismatch corrections")
+        fixed = _apply_fixes(file_map, [contract_validation], anthropic_client)
+        if fixed:
+            for path, content in fixed.items():
+                if path.startswith(_BACKEND_ROOT):
+                    git_utils.write_file(path, content)
+                    file_map[path] = content
+            contract_validation = _validate_api_contracts(lld, frontend_summary, file_map, anthropic_client)
+
     print(f"{_LOG_PREFIX} running self-review")
     self_review, file_map = _run_self_review(file_map, anthropic_client)
 
