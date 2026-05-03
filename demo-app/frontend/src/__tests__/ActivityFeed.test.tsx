@@ -1,16 +1,20 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ActivityFeed } from '../components/ActivityFeed';
 import { CommentPanel } from '../components/CommentPanel';
 import type { ActivityEntry } from '../types';
+
+const mockFetchComments = vi.fn();
+const mockPostComment = vi.fn();
+const mockFetchActivity = vi.fn();
 
 vi.mock('../hooks/useComments', () => ({
   useComments: () => ({
     comments: [],
     fetchLoading: false,
     fetchError: null,
-    fetchComments: vi.fn(),
-    postComment: vi.fn(),
+    fetchComments: mockFetchComments,
+    postComment: mockPostComment,
   }),
 }));
 
@@ -19,7 +23,7 @@ vi.mock('../hooks/useActivity', () => ({
     entries: [],
     fetchLoading: false,
     fetchError: null,
-    fetchActivity: vi.fn(),
+    fetchActivity: mockFetchActivity,
   }),
 }));
 
@@ -69,7 +73,7 @@ describe('ActivityFeed', () => {
 });
 
 describe('CommentPanel interaction test', () => {
-  it('clicking the Activity tab shows the ActivityFeed component', () => {
+  it('clicking the Activity tab shows the ActivityFeed component', async () => {
     const activeTask = { id: 'task-1', title: 'My Test Task' };
     const onClose = vi.fn();
     const onCommentAdded = vi.fn();
@@ -83,8 +87,32 @@ describe('CommentPanel interaction test', () => {
     );
 
     const activityTab = screen.getByRole('button', { name: 'Show activity tab' });
-    fireEvent.click(activityTab);
+    await act(async () => {
+      fireEvent.click(activityTab);
+    });
 
     expect(screen.getByText('No activity recorded yet.')).toBeInTheDocument();
+  });
+});
+
+describe('useComments fetchComments error case', () => {
+  it('sets fetchError when response is not ok', async () => {
+    const { useComments } = await vi.importActual<typeof import('../hooks/useComments')>('../hooks/useComments');
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+    }));
+
+    const { renderHook } = await import('@testing-library/react');
+    const { result } = renderHook(() => useComments());
+
+    await act(async () => {
+      await result.current.fetchComments('task-1');
+    });
+
+    expect(result.current.fetchError).toBe('Request failed with status 500');
+
+    vi.unstubAllGlobals();
   });
 });
