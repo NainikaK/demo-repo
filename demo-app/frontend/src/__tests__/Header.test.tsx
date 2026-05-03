@@ -5,45 +5,36 @@ import { Header } from '../components/Header';
 import * as useThemeModule from '../hooks/useTheme';
 
 vi.mock('../components/WeatherWidget', () => ({
-  WeatherWidget: () => <div data-testid="weather-widget" />,
+  WeatherWidget: () => <span data-testid="weather-widget" />,
 }));
 
 vi.mock('../components/ThemeIcon', () => ({
-  ThemeIcon: ({ isDark }: { isDark: boolean }) => (
-    <span data-testid="theme-icon" />
+  ThemeIcon: () => <span data-testid="theme-icon" />,
+}));
+
+vi.mock('../components/CheckTickIcon', () => ({
+  CheckTickIcon: ({ className }: { className?: string }) => (
+    <span data-testid="check-tick-icon" className={className} />
   ),
 }));
 
 describe('Header', () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    vi.spyOn(useThemeModule, 'useTheme').mockReturnValue({
+      theme: 'light',
+      toggleTheme: vi.fn(),
+    });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('render test - renders the smiley emoji span with aria-hidden before the weather widget', () => {
-    vi.spyOn(useThemeModule, 'useTheme').mockReturnValue({
-      theme: 'light',
-      toggleTheme: vi.fn(),
-    });
-
+  it('render test - renders the Task Manager title and the CheckTickIcon beside it', () => {
     render(<Header />);
 
-    const smiley = document.querySelector('span[aria-hidden="true"]');
-    expect(smiley).toBeInTheDocument();
-    expect(smiley).toHaveAttribute('aria-hidden', 'true');
-
-    const weatherWidget = screen.getByTestId('weather-widget');
-    expect(weatherWidget).toBeInTheDocument();
-
-    // Verify smiley appears before the weather widget in the DOM
-    const parent = smiley!.parentElement;
-    const children = Array.from(parent!.children);
-    const smileyIndex = children.indexOf(smiley as Element);
-    const weatherIndex = children.indexOf(weatherWidget);
-    expect(smileyIndex).toBeLessThan(weatherIndex);
+    expect(screen.getByText('Task Manager')).toBeInTheDocument();
+    expect(screen.getByTestId('check-tick-icon')).toBeInTheDocument();
   });
 
   it('interaction test - clicking the theme toggle button calls toggleTheme', async () => {
@@ -55,13 +46,13 @@ describe('Header', () => {
 
     render(<Header />);
 
-    const button = screen.getByRole('button');
+    const button = screen.getByRole('button', { name: 'Switch to dark mode' });
     await userEvent.click(button);
 
     expect(toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('edge case - renders without crashing in dark theme and smiley is still present', () => {
+  it('edge case - renders correctly in dark mode without crashing', () => {
     vi.spyOn(useThemeModule, 'useTheme').mockReturnValue({
       theme: 'dark',
       toggleTheme: vi.fn(),
@@ -69,9 +60,7 @@ describe('Header', () => {
 
     render(<Header />);
 
-    const smiley = document.querySelector('span[aria-hidden="true"]');
-    expect(smiley).toBeInTheDocument();
-    expect(smiley).toHaveClass('text-2xl');
-    expect(smiley).toHaveClass('leading-none');
+    expect(screen.getByRole('button', { name: 'Switch to light mode' })).toBeInTheDocument();
+    expect(screen.getByTestId('check-tick-icon')).toBeInTheDocument();
   });
 });
