@@ -30,23 +30,24 @@ public sealed class ActivityServiceTests
     }
 
     [Fact]
-    public async Task GetActivityByTaskIdAsync_NoEntries_ReturnsEmptyList()
+    public async Task GetActivityByTaskIdAsync_NoEntriesForTask_ReturnsEmptyList()
     {
-        var result = await _sut.GetActivityByTaskIdAsync("task-nonexistent");
+        var result = await _sut.GetActivityByTaskIdAsync("nonexistent-task");
 
         Assert.NotNull(result);
         Assert.Empty(result);
     }
 
     [Fact]
-    public async Task GetActivityByTaskIdAsync_AfterRecording_ReturnsMatchingEntry()
+    public async Task GetActivityByTaskIdAsync_AfterRecording_ReturnsEntryInChronologicalOrder()
     {
-        await _sut.RecordActivityAsync("task-2", "Task marked complete");
+        await _sut.RecordActivityAsync("task-42", "Task created");
+        await _sut.RecordActivityAsync("task-42", "Comment added");
 
-        var result = await _sut.GetActivityByTaskIdAsync("task-2");
+        var result = await _sut.GetActivityByTaskIdAsync("task-42");
 
-        Assert.Single(result);
-        Assert.Equal("Task marked complete", result[0].Description);
-        Assert.Equal("task-2", result[0].TaskId);
+        Assert.Equal(2, result.Count);
+        Assert.Equal("Task created", result[0].Description);
+        Assert.Equal("Comment added", result[1].Description);
     }
 }

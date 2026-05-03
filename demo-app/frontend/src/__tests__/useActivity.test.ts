@@ -21,8 +21,8 @@ describe('useActivity', () => {
 
   it('success case - returns activity entries when fetch succeeds', async () => {
     const mockEntries = [
-      { id: '1', taskId: 'task-1', description: 'Task created', createdAt: '2024-01-01T09:00:00.000Z' },
-      { id: '2', taskId: 'task-1', description: 'Comment added', createdAt: '2024-01-02T10:00:00.000Z' },
+      { id: 'a1', taskId: 'task-1', description: 'Task created', createdAt: '2024-01-01T00:00:00Z' },
+      { id: 'a2', taskId: 'task-1', description: 'Comment added', createdAt: '2024-01-02T00:00:00Z' },
     ];
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
@@ -41,7 +41,7 @@ describe('useActivity', () => {
     expect(result.current.fetchError).toBeNull();
   });
 
-  it('error case - sets fetchError and clears entries when fetch response is not ok', async () => {
+  it('error case - sets fetchError and empties entries when response is not ok', async () => {
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -56,6 +56,7 @@ describe('useActivity', () => {
     await waitFor(() => expect(result.current.fetchLoading).toBe(false));
 
     expect(result.current.entries).toEqual([]);
+    expect(result.current.fetchError).not.toBeNull();
     expect(result.current.fetchError).toContain('500');
   });
 
