@@ -85,8 +85,9 @@
                │           TEST AGENT               │
                │  Writes unit + integration tests   │
                │  Runs the test suite               │
-               │  Self-corrects failing tests       │
-               │  (up to 3 attempts per file)       │
+               │  Self-corrects build errors first  │
+               │  then assertion failures           │
+               │  (up to 3 attempts per file each)  │
                │  Writes outputs/_TestResults.md    │
                └────────────────┬───────────────────┘
                                 │  5. Test results → outputs/_TestResults.md
@@ -381,7 +382,21 @@ Scenarios are attached to the ADO user story in the Description field below the 
 - Read the change summaries from Frontend and Backend agents
 - Write tests according to the specific rules below
 - Run the full test suite and capture results
+- Self-correct failures in two sequential passes (see below)
 - Produce a test report: total tests, passed, failed, skipped, coverage %
+
+**Self-Correction: Pass 1 — Build Error Correction**
+When `dotnet test` exits without producing a results file (compilation failure), the agent parses compiler error lines from stderr using the pattern `file.cs(line,col): error CSxxxx: message`. It maps each error to the affected test file, enriches the context with relevant source files, and asks Claude to fix the file. Only files under `demo-app/backend/tests/` are corrected — source files are never modified. Up to `_CORRECTION_MAX_ATTEMPTS` (3) retry cycles. Each correction commits and pushes the fix, then re-runs `dotnet test` to verify.
+
+**Common build errors corrected automatically:**
+- CS0104 (ambiguous reference) — adds a `using` alias (e.g. `using Task = System.Threading.Tasks.Task;`)
+- CS7036 (missing constructor argument) — passes required parameters from source context
+- CS1061 (member not found) — updates to the actual member name from source files
+- CS0246 (type not found) — adds the required `using` statement
+- CS0029 / CS1503 (type mismatch) — aligns types with source file definitions
+
+**Self-Correction: Pass 2 — Assertion Failure Correction**
+After the build is clean, any xUnit test cases that compile but fail at runtime are corrected one file at a time. Failures are mapped to `.cs` files by xUnit class name. Claude receives the failing test content, error messages, and source files, and returns a corrected version. Up to `_CORRECTION_MAX_ATTEMPTS` (3) retry cycles per file.
 
 **Test Coverage Requirement:** Minimum 70% line coverage on changed files.
 
@@ -633,16 +648,21 @@ sdlc-ai-pipeline/
 │   │   ├── tsconfig.json
 │   │   └── package.json
 │   │
-│   └── backend/                       # .NET 8 ASP.NET Core Web API
+│   └── backend/                       # .NET 10 ASP.NET Core Web API
 │       ├── src/
 │       │   ├── Controllers/
 │       │   ├── Services/
 │       │   ├── Models/
-│       │   ├── Data/
-│       │   └── Middleware/
+│       │   ├── DTOs/
+│       │   ├── Common/                # Shared constants (TaskConstants.cs)
+│       │   ├── Data/                  # Reserved — empty placeholder
+│       │   ├── Middleware/            # Reserved — empty placeholder
+│       │   ├── GlobalUsings.cs        # global using Task = System.Threading.Tasks.Task;
+│       │   └── Program.cs
 │       ├── tests/
 │       │   ├── Unit/
-│       │   └── Integration/
+│       │   ├── Integration/
+│       │   └── GlobalUsings.cs        # Same Task alias for the test project
 │       └── DemoApp.sln
 │
 └── runs/                              # Pipeline run records (gitignored in prod)
@@ -660,13 +680,42 @@ The demo app is a lightweight full-stack application that exists solely to give 
 - The demo app provides a living, evolving target that grows as features are added by the pipeline
 - It must be simple enough to onboard quickly but realistic enough to exercise all agent responsibilities
 
-### Initial Feature Set (seed state)
-The demo app starts with a minimal but working application:
-- A basic React frontend with a header, a home page, and one or two UI components
-- A .NET backend with at least one REST endpoint the frontend calls
-- A working test suite with at least one test per layer
+### Current Feature Set
+The demo app has grown through the pipeline and currently includes:
 
-Agents will expand the demo app feature by feature as ADO work items flow through the pipeline.
+**Frontend (React 18 + TypeScript + Vite + Tailwind)**
+- `Header` — app title, smiley face emoji, weather widget, theme toggle button with `ThemeIcon`
+- `HomePage` — task form + scrollable task list with load-more pagination and a smiley icon footer
+- `TaskForm` — create task with title, description, due date, and assignee dropdown (fetches `/api/v1/users`)
+- `TaskCard` — displays task details, assignee avatar, and a "Mark Complete" button
+- `AssigneeAvatar` — renders the assignee's initials in a coloured badge
+- `WeatherWidget` + `WeatherIcon` — live weather from `/api/v1/weather`, shown in the header
+- `EyeIcon` — decorative SVG icon beside the "Upcoming Tasks" heading
+- `SmileyIcon` — decorative SVG icon at the bottom of the task list
+- `ThemeIcon` — sun/moon SVG that reflects the current theme
+- `LoadMoreButton` — reveals additional tasks in increments of 4
+- Dark / light theme via `ThemeContext` and `useTheme` hook, persisted in `localStorage`
+- All user-facing strings externalised to `utils/strings.ts`; API URLs in `utils/constants.ts`
+
+**Backend (.NET 10 ASP.NET Core Web API)**
+- `GET  /api/v1/tasks` — returns all tasks as `TaskDto[]`
+- `GET  /api/v1/tasks/{id}` — returns a single task or 404
+- `POST /api/v1/tasks` — creates a task; validates title; returns 201 with location header
+- `PATCH /api/v1/tasks/{id}/complete` — marks a task complete; returns 200, 404, or 409
+- `GET  /api/v1/users` — returns `{ users: [{ id, name }] }` for the assignee dropdown
+- `GET  /api/v1/weather` — returns current weather data
+- `ITaskService` / `IUserService` / `IWeatherService` — all registered as singletons in `Program.cs`
+- `TaskDto` — response shape including `assignedTo?: string` (name of assigned user)
+- `CreateTaskDto` — request shape with `title`, `description?`, `dueDate?`, `assignedTo?`
+- `TaskConstants` (`Common/`) — shared `DueDateFormat` and `TaskAlreadyCompletedMessage`
+- `AssignableUser` model and `UserDto` for the users endpoint
+- `GlobalUsings.cs` in both `src/` and `tests/` — resolves `Task` namespace ambiguity
+
+**Test suite**
+- xUnit unit tests for all services and controllers (`tests/Unit/`)
+- Frontend Vitest tests for all components and hooks (`src/__tests__/`)
+
+Agents continue to expand the demo app feature by feature as ADO work items flow through the pipeline.
 
 ### Demo App Rules
 - The demo app must always be in a runnable state on `main`
@@ -717,6 +766,7 @@ All agents producing code must follow these standards. The Audit Agent scores ag
 - HTTP status codes must be semantically correct (200, 201, 400, 404, 409, 500)
 - Never swallow exceptions — log and re-throw or return a structured error response
 - **API Versioning Requirement:** All backend API endpoints must be under a versioned path prefix. Minimum version is `/api/v1/`. Unversioned endpoints are a standards violation
+- **Namespace Ambiguity:** The project uses `global using Task = System.Threading.Tasks.Task;` in both `src/GlobalUsings.cs` and `tests/GlobalUsings.cs` to prevent CS0104 errors when `DemoApp.Api.Models` is imported. Never remove these files. When adding new model classes that share a name with a BCL type, add a corresponding global using alias rather than using per-file aliases
 
 ### 8.4 Test Standards
 
@@ -924,5 +974,5 @@ The Supervisor Agent creates the PR via the GitHub API with:
 
 ---
 
-*Last updated: 2026-04-30*
+*Last updated: 2026-05-02*
 *This document must be updated whenever the pipeline architecture, agent responsibilities, tech stack, or standards change. No agent should act on information not reflected here.*
