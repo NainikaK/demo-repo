@@ -22,7 +22,7 @@ export function CompletedTasksSection({
       {completedTasks.length === 0 ? (
         <p className="text-gray-500 dark:text-gray-400">{LABEL_NO_COMPLETED_TASKS}</p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col gap-3 max-h-[200px] overflow-y-auto">
           {completedTasks.map((task) => (
             <li key={task.id}>
               <TaskCard task={task} onComplete={onComplete} />
