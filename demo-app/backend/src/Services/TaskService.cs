@@ -1,4 +1,7 @@
+using System.Globalization;
+using DemoApp.Api.Common;
 using DemoApp.Api.DTOs;
+using Microsoft.Extensions.Logging;
 using TaskModel = DemoApp.Api.Models.Task;
 
 namespace DemoApp.Api.Services;
@@ -6,17 +9,21 @@ namespace DemoApp.Api.Services;
 /// <summary>
 /// In-memory implementation of <see cref="ITaskService"/>.
 /// Seeded with sample tasks on construction; no database required.
+/// Thread-safe via a dedicated lock object.
 /// </summary>
 public sealed class TaskService : ITaskService
 {
     private readonly List<TaskModel> _tasks;
     private int _nextId;
-
-    private const string DueDateFormat = "yyyy-MM-dd";
+    private readonly object _lock = new();
+    private readonly ILogger<TaskService> _logger;
 
     /// <summary>Initialises the service and seeds sample tasks.</summary>
-    public TaskService()
+    /// <param name="logger">The logger instance.</param>
+    public TaskService(ILogger<TaskService> logger)
     {
+        _logger = logger;
+
         _tasks =
         [
             new TaskModel
@@ -48,58 +55,128 @@ public sealed class TaskService : ITaskService
         _nextId = _tasks.Count + 1;
     }
 
-    /// <summary>Returns all tasks.</summary>
-    public Task<IEnumerable<TaskModel>> GetAllTasksAsync() =>
-        Task.FromResult<IEnumerable<TaskModel>>(_tasks);
-
-    /// <summary>Returns a single task by ID, or null if not found.</summary>
-    /// <param name="id">The task identifier.</param>
-    public Task<TaskModel?> GetTaskByIdAsync(string id) =>
-        Task.FromResult(_tasks.FirstOrDefault(t => t.Id == id));
-
-    /// <summary>Creates a new task from the provided DTO and returns the persisted task.</summary>
-    /// <param name="dto">The data required to create the task.</param>
-    /// <returns>The newly created task.</returns>
-    public Task<TaskModel> CreateTaskAsync(CreateTaskDto dto)
+    /// <summary>Returns all tasks as DTOs.</summary>
+    public Task<IEnumerable<TaskDto>> GetAllTasksAsync()
     {
-        var task = new TaskModel
+        try
         {
-            Id = (_nextId++).ToString(),
-            Title = dto.Title.Trim(),
-            Description = dto.Description ?? string.Empty,
-            DueDate = ParseDueDate(dto.DueDate),
-            Completed = false,
-            CreatedAt = DateTime.UtcNow,
-        };
+            List<TaskModel> snapshot;
+            lock (_lock)
+            {
+                snapshot = [.. _tasks];
+            }
 
-        _tasks.Add(task);
+            _logger.LogDebug("Retrieving all tasks. Count: {Count}", snapshot.Count);
+            return Task.FromResult<IEnumerable<TaskDto>>(snapshot.Select(MapToDto).ToList());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error while retrieving all tasks.");
+            throw;
+        }
+    }
 
-        return Task.FromResult(task);
+    /// <summary>Returns a single task DTO by ID, or null if not found.</summary>
+    /// <param name="id">The task identifier.</param>
+    public Task<TaskDto?> GetTaskByIdAsync(string id)
+    {
+        try
+        {
+            TaskModel? task;
+            lock (_lock)
+            {
+                task = _tasks.FirstOrDefault(t => t.Id == id);
+            }
+
+            _logger.LogDebug("GetTaskById: id={Id}, found={Found}", id, task is not null);
+            return Task.FromResult(task is null ? null : MapToDto(task));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error while retrieving task by id {Id}.", id);
+            throw;
+        }
+    }
+
+    /// <summary>Creates a new task from the provided DTO and returns the persisted task as a DTO.</summary>
+    /// <param name="dto">The data required to create the task.</param>
+    public Task<TaskDto> CreateTaskAsync(CreateTaskDto dto)
+    {
+        try
+        {
+            TaskModel task;
+            lock (_lock)
+            {
+                task = new TaskModel
+                {
+                    Id = (_nextId++).ToString(),
+                    Title = dto.Title.Trim(),
+                    Description = dto.Description ?? string.Empty,
+                    DueDate = ParseDueDate(dto.DueDate),
+                    Completed = false,
+                    CreatedAt = DateTime.UtcNow,
+                    AssignedTo = string.IsNullOrWhiteSpace(dto.AssignedTo) ? null : dto.AssignedTo.Trim(),
+                };
+                _tasks.Add(task);
+            }
+
+            _logger.LogInformation("Task created with id {Id}.", task.Id);
+            return Task.FromResult(MapToDto(task));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error while creating a task.");
+            throw;
+        }
     }
 
     /// <summary>Marks an existing task as complete.</summary>
     /// <param name="id">The task identifier.</param>
-    /// <returns>
-    /// A <see cref="CompleteTaskResult"/> discriminated union indicating the outcome.
-    /// </returns>
     public Task<CompleteTaskResult> CompleteTaskAsync(string id)
     {
-        var task = _tasks.FirstOrDefault(t => t.Id == id);
-
-        if (task is null)
+        try
         {
-            return Task.FromResult<CompleteTaskResult>(new CompleteTaskResult.NotFound());
-        }
+            lock (_lock)
+            {
+                var task = _tasks.FirstOrDefault(t => t.Id == id);
 
-        if (task.Completed)
+                if (task is null)
+                {
+                    _logger.LogWarning("CompleteTask: task {Id} not found.", id);
+                    return Task.FromResult<CompleteTaskResult>(new CompleteTaskResult.NotFound());
+                }
+
+                if (task.Completed)
+                {
+                    _logger.LogWarning("CompleteTask: task {Id} is already completed.", id);
+                    return Task.FromResult<CompleteTaskResult>(new CompleteTaskResult.AlreadyCompleted());
+                }
+
+                task.Completed = true;
+                _logger.LogInformation("Task {Id} marked as complete.", id);
+                return Task.FromResult<CompleteTaskResult>(new CompleteTaskResult.Success(MapToDto(task)));
+            }
+        }
+        catch (Exception ex)
         {
-            return Task.FromResult<CompleteTaskResult>(new CompleteTaskResult.AlreadyCompleted());
+            _logger.LogError(ex, "Unexpected error while completing task {Id}.", id);
+            throw;
         }
-
-        task.Completed = true;
-
-        return Task.FromResult<CompleteTaskResult>(new CompleteTaskResult.Success(task));
     }
+
+    private static TaskDto MapToDto(TaskModel task) =>
+        new()
+        {
+            Id = task.Id,
+            Title = task.Title,
+            Description = task.Description,
+            DueDate = task.DueDate.HasValue
+                ? task.DueDate.Value.ToString(TaskConstants.DueDateFormat)
+                : null,
+            Completed = task.Completed,
+            CreatedAt = task.CreatedAt,
+            AssignedTo = task.AssignedTo,
+        };
 
     private static DateOnly? ParseDueDate(string? value)
     {
@@ -108,7 +185,7 @@ public sealed class TaskService : ITaskService
             return null;
         }
 
-        if (DateOnly.TryParseExact(value, DueDateFormat, null, System.Globalization.DateTimeStyles.None, out var date))
+        if (DateOnly.TryParseExact(value, TaskConstants.DueDateFormat, null, DateTimeStyles.None, out var date))
         {
             return date;
         }

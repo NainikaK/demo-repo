@@ -23,4 +23,7 @@ public class TaskDto
 
     /// <summary>Gets or sets the UTC creation timestamp.</summary>
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>Gets or sets the optional name of the user assigned to this task.</summary>
+    public string? AssignedTo { get; set; }
 }

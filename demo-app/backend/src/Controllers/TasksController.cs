@@ -1,7 +1,7 @@
+using DemoApp.Api.Common;
 using DemoApp.Api.DTOs;
 using DemoApp.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using TaskModel = DemoApp.Api.Models.Task;
 
 namespace DemoApp.Api.Controllers;
 
@@ -13,14 +13,15 @@ namespace DemoApp.Api.Controllers;
 public sealed class TasksController : ControllerBase
 {
     private readonly ITaskService _taskService;
-
-    private const string DueDateFormat = "yyyy-MM-dd";
+    private readonly ILogger<TasksController> _logger;
 
     /// <summary>Initialises the controller with the task service.</summary>
     /// <param name="taskService">The task service.</param>
-    public TasksController(ITaskService taskService)
+    /// <param name="logger">The logger instance.</param>
+    public TasksController(ITaskService taskService, ILogger<TasksController> logger)
     {
         _taskService = taskService;
+        _logger = logger;
     }
 
     /// <summary>Returns all tasks.</summary>
@@ -30,8 +31,16 @@ public sealed class TasksController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<TaskDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAllTasks()
     {
-        var tasks = await _taskService.GetAllTasksAsync();
-        return Ok(tasks.Select(MapToDto));
+        try
+        {
+            var tasks = await _taskService.GetAllTasksAsync();
+            return Ok(tasks);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error in {Action}.", nameof(GetAllTasks));
+            return StatusCode(StatusCodes.Status500InternalServerError);
+        }
     }
 
     /// <summary>Returns a single task by ID.</summary>
@@ -44,13 +53,21 @@ public sealed class TasksController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetTaskById(string id)
     {
-        var task = await _taskService.GetTaskByIdAsync(id);
-        if (task is null)
+        try
         {
-            return NotFound();
-        }
+            var task = await _taskService.GetTaskByIdAsync(id);
+            if (task is null)
+            {
+                return NotFound();
+            }
 
-        return Ok(MapToDto(task));
+            return Ok(task);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error in {Action} for id {Id}.", nameof(GetTaskById), id);
+            return StatusCode(StatusCodes.Status500InternalServerError);
+        }
     }
 
     /// <summary>Creates a new task.</summary>
@@ -63,16 +80,23 @@ public sealed class TasksController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateTask([FromBody] CreateTaskDto dto)
     {
-        if (string.IsNullOrWhiteSpace(dto.Title))
+        try
         {
-            ModelState.AddModelError(nameof(dto.Title), "Title is required and must not be whitespace.");
-            return ValidationProblem(ModelState);
+            if (string.IsNullOrWhiteSpace(dto.Title))
+            {
+                ModelState.AddModelError(nameof(dto.Title), "Title is required and must not be whitespace.");
+                return ValidationProblem(ModelState);
+            }
+
+            var result = await _taskService.CreateTaskAsync(dto);
+
+            return CreatedAtAction(nameof(GetTaskById), new { id = result.Id }, result);
         }
-
-        var task = await _taskService.CreateTaskAsync(dto);
-        var result = MapToDto(task);
-
-        return CreatedAtAction(nameof(GetTaskById), new { id = result.Id }, result);
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error in {Action}.", nameof(CreateTask));
+            return StatusCode(StatusCodes.Status500InternalServerError);
+        }
     }
 
     /// <summary>Marks a task as complete.</summary>
@@ -87,27 +111,22 @@ public sealed class TasksController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CompleteTask(string id)
     {
-        var result = await _taskService.CompleteTaskAsync(id);
-
-        return result switch
+        try
         {
-            CompleteTaskResult.NotFound => NotFound(),
-            CompleteTaskResult.AlreadyCompleted => Conflict(new { message = "Task is already marked as complete." }),
-            CompleteTaskResult.Success task => Ok(MapToDto(task.Task)),
-            _ => StatusCode(StatusCodes.Status500InternalServerError),
-        };
+            var result = await _taskService.CompleteTaskAsync(id);
+
+            return result switch
+            {
+                CompleteTaskResult.NotFound => NotFound(),
+                CompleteTaskResult.AlreadyCompleted => Conflict(new { message = TaskConstants.TaskAlreadyCompletedMessage }),
+                CompleteTaskResult.Success success => Ok(success.Task),
+                _ => StatusCode(StatusCodes.Status500InternalServerError),
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error in {Action} for id {Id}.", nameof(CompleteTask), id);
+            return StatusCode(StatusCodes.Status500InternalServerError);
+        }
     }
-
-    private static TaskDto MapToDto(TaskModel task) =>
-        new()
-        {
-            Id = task.Id,
-            Title = task.Title,
-            Description = task.Description,
-            DueDate = task.DueDate.HasValue
-                ? task.DueDate.Value.ToString(DueDateFormat)
-                : null,
-            Completed = task.Completed,
-            CreatedAt = task.CreatedAt,
-        };
 }

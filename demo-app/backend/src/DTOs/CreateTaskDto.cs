@@ -17,4 +17,7 @@ public class CreateTaskDto
 
     /// <summary>Gets or sets the optional due date as an ISO 8601 date string (e.g. '2025-09-01'), or null.</summary>
     public string? DueDate { get; set; }
+
+    /// <summary>Gets or sets the optional name of the user to assign the task to.</summary>
+    public string? AssignedTo { get; set; }
 }
