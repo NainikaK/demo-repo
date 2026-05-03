@@ -1,8 +1,13 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { useAssignableUsers } from '../hooks/useAssignableUsers';
+import { useComments } from '../hooks/useComments';
 
-describe('useAssignableUsers', () => {
+vi.mock('../utils/constants', () => ({
+  COMMENTS_URL: vi.fn((taskId: string) => `/api/v1/tasks/${taskId}/comments`),
+  COMMENT_MAX_LENGTH: 500,
+}));
+
+describe('useComments', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
   });
@@ -12,26 +17,25 @@ describe('useAssignableUsers', () => {
   });
 
   it('success case - returns users array when fetch succeeds', async () => {
-    const mockApiResponse = {
-      users: [
-        { id: 1, name: 'Nainika K' },
-        { id: 2, name: 'Anna' },
-        { id: 3, name: 'Elsa' },
-        { id: 4, name: 'Sam D' },
-        { id: 5, name: 'Jacey' },
-      ],
-    };
+    const mockComments = [
+      { id: '1', taskId: 'task1', text: 'Hello', createdAt: '2024-01-01T00:00:00Z' },
+      { id: '2', taskId: 'task1', text: 'World', createdAt: '2024-01-02T00:00:00Z' },
+    ];
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
-      json: async () => mockApiResponse,
+      json: async () => mockComments,
     });
 
-    const { result } = renderHook(() => useAssignableUsers());
+    const { result } = renderHook(() => useComments());
 
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.fetchComments('task1');
+    });
 
-    expect(result.current.users).toEqual(mockApiResponse.users.map((u) => u.name));
-    expect(result.current.error).toBeNull();
+    await waitFor(() => expect(result.current.fetchLoading).toBe(false));
+
+    expect(result.current.comments).toEqual(mockComments);
+    expect(result.current.fetchError).toBeNull();
   });
 
   it('error case - sets error and returns empty users when fetch response is not ok', async () => {
@@ -40,24 +44,32 @@ describe('useAssignableUsers', () => {
       status: 500,
     });
 
-    const { result } = renderHook(() => useAssignableUsers());
+    const { result } = renderHook(() => useComments());
 
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.fetchComments('task1');
+    });
 
-    expect(result.current.users).toEqual([]);
-    expect(result.current.error).toContain('500');
+    await waitFor(() => expect(result.current.fetchLoading).toBe(false));
+
+    expect(result.current.comments).toEqual([]);
+    expect(result.current.fetchError).not.toBeNull();
   });
 
-  it('loading state - exposes loading as true while fetch is in flight', async () => {
+  it('loading state - fetchLoading is true while fetchComments is in flight', async () => {
     let resolve!: (value: unknown) => void;
     const pending = new Promise((r) => { resolve = r; });
     (fetch as ReturnType<typeof vi.fn>).mockReturnValueOnce(pending);
 
-    const { result } = renderHook(() => useAssignableUsers());
+    const { result } = renderHook(() => useComments());
 
-    expect(result.current.loading).toBe(true);
+    act(() => {
+      result.current.fetchComments('task1');
+    });
+
+    await waitFor(() => expect(result.current.fetchLoading).toBe(true));
 
     resolve({ ok: true, json: async () => [] });
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.fetchLoading).toBe(false));
   });
 });
