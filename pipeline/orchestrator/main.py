@@ -56,6 +56,7 @@ TRIGGER_TYPES: list[str] = ["User Story", "Feature"]
 MAX_AGENT_RETRIES: int = 2
 AGENT_TIMEOUT_SECONDS: int = 600
 RETRY_WAIT_SECONDS: int = 30
+STALE_RUN_MINUTES: int = 60
 LOG_PREFIX: str = "[orchestrator]"
 
 _PIPELINE_STARTED_COMMENT = (
@@ -371,6 +372,7 @@ class Orchestrator:
                 time.sleep(POLL_INTERVAL_SECONDS)
         except KeyboardInterrupt:
             print(f"{LOG_PREFIX} shutting down — keyboard interrupt received")
+            self._terminate_interrupted_runs()
 
     def _poll_once(self) -> None:
         """Fetch eligible work items and start a pipeline run for each new one.
@@ -457,16 +459,73 @@ class Orchestrator:
         return enriched
 
     def _get_active_work_item_ids(self) -> set[str]:
-        """Return work item IDs that already have a non-terminal pipeline run."""
+        """Return work item IDs that have a non-terminal, non-stale pipeline run.
+
+        PENDING_CLARIFICATION runs are never expired — they intentionally wait for
+        human input and are resumed by _recover_paused_clarifications.
+
+        All other non-terminal states expire after STALE_RUN_MINUTES so that a
+        process killed mid-run (Ctrl+C, crash) does not permanently block the work
+        item from being re-processed on the next start.
+        """
         active: set[str] = set()
+        now = datetime.now(timezone.utc)
         for run_id in self.run_record_manager.list_runs():
             try:
                 loaded = self.run_record_manager.load(run_id)
-                if not self.state_machine.is_terminal(loaded.state):
+                if self.state_machine.is_terminal(loaded.state):
+                    continue
+                if loaded.state == PipelineState.pending_clarification:
                     active.add(loaded.work_item_id)
+                    continue
+                age_minutes = (now - loaded.started_at).total_seconds() / 60
+                if age_minutes > STALE_RUN_MINUTES:
+                    print(
+                        f"{LOG_PREFIX} stale run detected: run_id={run_id} "
+                        f"work_item={loaded.work_item_id} state={loaded.state.value} "
+                        f"age={age_minutes:.0f}m — marking failed and re-queuing"
+                    )
+                    try:
+                        self.state_machine.transition(loaded, PipelineState.pipeline_failed)
+                        loaded.completed_at = now
+                        loaded.error_message = (
+                            f"Auto-terminated: run stuck in {loaded.state.value} "
+                            f"for {age_minutes:.0f} minutes (process was likely interrupted)."
+                        )
+                        self.run_record_manager.save(loaded)
+                    except Exception as exc:
+                        print(f"{LOG_PREFIX} warning: could not mark stale run {run_id} as failed — {exc}")
+                    continue
+                active.add(loaded.work_item_id)
             except Exception:
                 pass
         return active
+
+    def _terminate_interrupted_runs(self) -> None:
+        """On Ctrl+C, mark every in-progress run as PIPELINE_FAILED immediately.
+
+        Ensures the work item is re-processable on the next start without waiting
+        for the STALE_RUN_MINUTES timeout.  PENDING_CLARIFICATION runs are skipped
+        — they are intentionally waiting for human input.
+        """
+        now = datetime.now(timezone.utc)
+        for run_id in self.run_record_manager.list_runs():
+            try:
+                run = self.run_record_manager.load(run_id)
+                if self.state_machine.is_terminal(run.state):
+                    continue
+                if run.state == PipelineState.pending_clarification:
+                    continue
+                self.state_machine.transition(run, PipelineState.pipeline_failed)
+                run.completed_at = now
+                run.error_message = "Pipeline interrupted by operator (keyboard interrupt)."
+                self.run_record_manager.save(run)
+                print(
+                    f"{LOG_PREFIX} shutdown cleanup: marked run {run_id} "
+                    f"(work_item={run.work_item_id}) as PIPELINE_FAILED"
+                )
+            except Exception as exc:
+                print(f"{LOG_PREFIX} warning: could not terminate run {run_id} on shutdown — {exc}")
 
     def _run_pipeline(self, work_item: dict[str, Any]) -> None:
         """Execute the full agent pipeline sequentially for one work item."""
