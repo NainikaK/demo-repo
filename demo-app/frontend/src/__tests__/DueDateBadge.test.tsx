@@ -1,54 +1,68 @@
 import { render, screen } from '@testing-library/react';
+import { describe, expect, it, vi, afterEach, beforeEach } from 'vitest';
 import { DueDateBadge } from '../components/DueDateBadge';
-import { LABEL_DUE_TODAY, LABEL_OVERDUE } from '../utils/strings';
 
-function toDateString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+function getTodayString(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getYesterdayString(): string {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const year = yesterday.getFullYear();
+  const month = String(yesterday.getMonth() + 1).padStart(2, '0');
+  const day = String(yesterday.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getTomorrowString(): string {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const year = tomorrow.getFullYear();
+  const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+  const day = String(tomorrow.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
 describe('DueDateBadge', () => {
-  it('renders the Due Today badge when dueDate matches today', () => {
-    const today = toDateString(new Date());
+  it('render test - renders the Due Today badge when dueDate matches today', () => {
+    const today = getTodayString();
     render(<DueDateBadge dueDate={today} />);
-    expect(screen.getByText(LABEL_DUE_TODAY)).toBeInTheDocument();
+
+    expect(screen.getByText('Due Today')).toBeInTheDocument();
   });
 
-  it('renders the Overdue badge when dueDate is before today', () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    render(<DueDateBadge dueDate={toDateString(yesterday)} />);
-    expect(screen.getByText(LABEL_OVERDUE)).toBeInTheDocument();
+  it('interaction test - renders the Overdue badge when dueDate is before today', () => {
+    const yesterday = getYesterdayString();
+    render(<DueDateBadge dueDate={yesterday} />);
+
+    expect(screen.getByText('Overdue')).toBeInTheDocument();
   });
 
-  it('renders nothing when dueDate is undefined', () => {
+  it('edge case - renders nothing when dueDate is undefined', () => {
     const { container } = render(<DueDateBadge dueDate={undefined} />);
+
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders nothing when dueDate is in the future', () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const { container } = render(<DueDateBadge dueDate={toDateString(tomorrow)} />);
+  it('edge case - renders nothing when dueDate is in the future', () => {
+    const tomorrow = getTomorrowString();
+    const { container } = render(<DueDateBadge dueDate={tomorrow} />);
+
     expect(container.firstChild).toBeNull();
   });
 
-  it('does not render an interactive element for Due Today badge', () => {
-    const today = toDateString(new Date());
+  it('edge case - the badge is non-interactive and has no click handler', () => {
+    const today = getTodayString();
     render(<DueDateBadge dueDate={today} />);
-    const badge = screen.getByText(LABEL_DUE_TODAY);
-    expect(badge.tagName).toBe('SPAN');
-    expect(badge).not.toHaveAttribute('onClick');
-  });
 
-  it('does not render an interactive element for Overdue badge', () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    render(<DueDateBadge dueDate={toDateString(yesterday)} />);
-    const badge = screen.getByText(LABEL_OVERDUE);
-    expect(badge.tagName).toBe('SPAN');
-    expect(badge).not.toHaveAttribute('onClick');
+    const badge = screen.getByText('Due Today');
+    expect(badge.tagName.toLowerCase()).toBe('span');
+    expect(badge).not.toHaveAttribute('role', 'button');
+    expect(badge.onclick).toBeNull();
   });
 });
