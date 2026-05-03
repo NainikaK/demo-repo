@@ -38,7 +38,7 @@ import git_utils  # noqa: E402
 _MODEL = "claude-sonnet-4-6"
 _MAX_TOKENS = 16000
 _SPLIT_MAX_TOKENS = 16000
-_CORRECTION_MAX_ATTEMPTS = 3
+_CORRECTION_MAX_ATTEMPTS = 5
 _FRONTEND_TEST_DIR = "demo-app/frontend/src/__tests__"
 _BACKEND_TEST_DIR = "demo-app/backend/tests/Unit"
 _BACKEND_TEST_ROOT = "demo-app/backend/tests"
@@ -321,12 +321,13 @@ def _infer_component_source(test_rel_path: str) -> str | None:
         return None
     component_name = stem[:-5]  # 'Header'
     for subdir in _FRONTEND_SOURCE_SUBDIRS:
-        candidate = f"demo-app/frontend/src/{subdir}/{component_name}.tsx"
-        try:
-            git_utils.read_file(candidate)
-            return candidate
-        except (FileNotFoundError, RuntimeError):
-            pass
+        for ext in (".tsx", ".ts"):  # hooks are .ts, components are .tsx
+            candidate = f"demo-app/frontend/src/{subdir}/{component_name}{ext}"
+            try:
+                git_utils.read_file(candidate)
+                return candidate
+            except (FileNotFoundError, RuntimeError):
+                pass
     return None
 
 
@@ -341,6 +342,10 @@ def _correct_frontend_tests(
     source_files = _read_files_from_paths(
         frontend_summary.files_modified + frontend_summary.files_created + _FRONTEND_UTILITY_FILES
     )
+    # Include the full frontend context so corrections have the same codebase view as generation
+    for path, content in _read_frontend_context_files().items():
+        if path not in source_files:
+            source_files[path] = content
 
     for attempt in range(1, _CORRECTION_MAX_ATTEMPTS + 1):
         failed = [c for c in best if c.status == TestStatus.failed]
@@ -366,7 +371,7 @@ def _correct_frontend_tests(
             except OSError:
                 continue
 
-            # Include the component the test exercises so Claude doesn't confuse components.
+            # Include the component/hook the test exercises so Claude has its exact implementation.
             per_file_source = dict(source_files)
             component_path = _infer_component_source(rel_path)
             if component_path and component_path not in per_file_source:
@@ -375,8 +380,18 @@ def _correct_frontend_tests(
                 except (FileNotFoundError, RuntimeError):
                     pass
 
+            retry_hint = (
+                f"IMPORTANT: This is correction attempt {attempt}. "
+                "Your previous fix was applied but the test still fails with the same error. "
+                "The current test_file_content already reflects your previous correction. "
+                "Try a completely different approach — check imports, mocks, expected values, "
+                "and whether the test matches the ACTUAL behavior shown in source_files."
+            ) if attempt > 1 else ""
+
             msg = json.dumps({
                 "test_file_path": rel_path,
+                "correction_attempt": attempt,
+                "retry_hint": retry_hint,
                 "failing_tests": [{"name": c.name, "error": c.error_message or ""} for c in file_cases],
                 "test_file_content": current_content,
                 "source_files": per_file_source,
@@ -452,8 +467,18 @@ def _correct_backend_tests(
             except OSError:
                 continue
 
+            retry_hint = (
+                f"IMPORTANT: This is correction attempt {attempt}. "
+                "Your previous fix was applied but the test still fails with the same error. "
+                "The current test_file_content already reflects your previous correction. "
+                "Try a completely different approach — check constructor arguments, method signatures, "
+                "using statements, and whether expected values match the ACTUAL source shown in source_files."
+            ) if attempt > 1 else ""
+
             msg = json.dumps({
                 "test_file_path": rel_path,
+                "correction_attempt": attempt,
+                "retry_hint": retry_hint,
                 "failing_tests": [{"name": c.name, "error": c.error_message or ""} for c in file_cases],
                 "test_file_content": current_content,
                 "source_files": source_files,
