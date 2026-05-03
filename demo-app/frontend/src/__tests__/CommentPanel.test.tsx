@@ -90,4 +90,28 @@ describe('CommentPanel', () => {
 
     expect(container.firstChild).toBeNull();
   });
+
+  describe('useComments fetchComments error case', () => {
+    it('sets fetchError when response is not ok', () => {
+      vi.doMock('../hooks/useComments', () => ({
+        useComments: () => ({
+          comments: [],
+          fetchLoading: false,
+          fetchError: 'Failed to load comments. Please try again.',
+          fetchComments: mocks.fetchComments,
+          postComment: mocks.postComment,
+        }),
+      }));
+
+      render(
+        <CommentPanel
+          activeTask={activeTask}
+          onClose={vi.fn()}
+          onCommentAdded={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText('Failed to load comments. Please try again.')).toBeInTheDocument();
+    });
+  });
 });
