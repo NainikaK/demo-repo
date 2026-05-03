@@ -5,9 +5,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
-using TaskModel = DemoApp.Api.Models.Task;
 
 namespace DemoApp.Tests.Unit;
 
@@ -19,7 +19,8 @@ public sealed class TasksControllerTests
     public TasksControllerTests()
     {
         _mockService = new Mock<ITaskService>();
-        _sut = new TasksController(_mockService.Object);
+        var mockLogger = new Mock<ILogger<TasksController>>();
+        _sut = new TasksController(_mockService.Object, mockLogger.Object);
 
         var problemDetailsFactory = new Mock<ProblemDetailsFactory>();
         problemDetailsFactory
@@ -50,7 +51,7 @@ public sealed class TasksControllerTests
     [Fact]
     public async Task GetAllTasks_TasksExist_Returns200WithTaskList()
     {
-        var tasks = new List<TaskModel>
+        var tasks = new List<TaskDto>
         {
             new() { Id = "1", Title = "Task One", Description = "", Completed = false, CreatedAt = DateTime.UtcNow },
         };
@@ -67,7 +68,7 @@ public sealed class TasksControllerTests
     [Fact]
     public async Task GetTaskById_ValidId_Returns200WithTask()
     {
-        var task = new TaskModel { Id = "1", Title = "Task One", Description = "", Completed = false, CreatedAt = DateTime.UtcNow };
+        var task = new TaskDto { Id = "1", Title = "Task One", Description = "", Completed = false, CreatedAt = DateTime.UtcNow };
         _mockService.Setup(s => s.GetTaskByIdAsync("1")).ReturnsAsync(task);
 
         var result = await _sut.GetTaskById("1");
@@ -82,7 +83,7 @@ public sealed class TasksControllerTests
     [Fact]
     public async Task GetTaskById_InvalidId_Returns404()
     {
-        _mockService.Setup(s => s.GetTaskByIdAsync("999")).ReturnsAsync((TaskModel?)null);
+        _mockService.Setup(s => s.GetTaskByIdAsync("999")).ReturnsAsync((TaskDto?)null);
 
         var result = await _sut.GetTaskById("999");
 
@@ -95,16 +96,16 @@ public sealed class TasksControllerTests
     public async Task CreateTask_ValidDto_Returns201WithCreatedTask()
     {
         var dto = new CreateTaskDto { Title = "Brand New Task", Description = "Details", DueDate = "2025-09-01" };
-        var createdTask = new TaskModel
+        var createdTaskDto = new TaskDto
         {
             Id = "4",
             Title = "Brand New Task",
             Description = "Details",
-            DueDate = new DateOnly(2025, 9, 1),
+            DueDate = "2025-09-01",
             Completed = false,
             CreatedAt = DateTime.UtcNow,
         };
-        _mockService.Setup(s => s.CreateTaskAsync(dto)).ReturnsAsync(createdTask);
+        _mockService.Setup(s => s.CreateTaskAsync(dto)).ReturnsAsync(createdTaskDto);
 
         var result = await _sut.CreateTask(dto);
 
@@ -145,7 +146,7 @@ public sealed class TasksControllerTests
     public async Task CreateTask_NullDueDate_Returns201WithNullDueDateInResponse()
     {
         var dto = new CreateTaskDto { Title = "No Due Date Task", DueDate = null };
-        var createdTask = new TaskModel
+        var createdTaskDto = new TaskDto
         {
             Id = "5",
             Title = "No Due Date Task",
@@ -154,7 +155,7 @@ public sealed class TasksControllerTests
             Completed = false,
             CreatedAt = DateTime.UtcNow,
         };
-        _mockService.Setup(s => s.CreateTaskAsync(dto)).ReturnsAsync(createdTask);
+        _mockService.Setup(s => s.CreateTaskAsync(dto)).ReturnsAsync(createdTaskDto);
 
         var result = await _sut.CreateTask(dto);
 
@@ -168,7 +169,7 @@ public sealed class TasksControllerTests
     public async Task CreateTask_ValidDto_CreatedAtActionPointsToGetTaskById()
     {
         var dto = new CreateTaskDto { Title = "Route Check Task" };
-        var createdTask = new TaskModel
+        var createdTaskDto = new TaskDto
         {
             Id = "6",
             Title = "Route Check Task",
@@ -176,7 +177,7 @@ public sealed class TasksControllerTests
             Completed = false,
             CreatedAt = DateTime.UtcNow,
         };
-        _mockService.Setup(s => s.CreateTaskAsync(dto)).ReturnsAsync(createdTask);
+        _mockService.Setup(s => s.CreateTaskAsync(dto)).ReturnsAsync(createdTaskDto);
 
         var result = await _sut.CreateTask(dto);
 
@@ -190,7 +191,7 @@ public sealed class TasksControllerTests
     [Fact]
     public async Task CompleteTask_PendingTask_Returns200WithCompletedDto()
     {
-        var task = new TaskModel
+        var taskDto = new TaskDto
         {
             Id = "2",
             Title = "Write unit tests",
@@ -200,7 +201,7 @@ public sealed class TasksControllerTests
         };
         _mockService
             .Setup(s => s.CompleteTaskAsync("2"))
-            .ReturnsAsync(new CompleteTaskResult.Success(task));
+            .ReturnsAsync(new CompleteTaskResult.Success(taskDto));
 
         var result = await _sut.CompleteTask("2");
 

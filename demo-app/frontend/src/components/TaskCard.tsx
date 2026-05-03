@@ -1,3 +1,4 @@
+import { AssigneeAvatar } from './AssigneeAvatar';
 import type { Task } from '../types';
 import {
   LABEL_COMPLETED,
@@ -34,21 +35,24 @@ export function TaskCard({ task, onComplete }: TaskCardProps) {
         >
           {task.title}
         </h2>
-        {task.completed ? (
-          <span className="shrink-0 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-            {LABEL_COMPLETED}
-          </span>
-        ) : (
-          onComplete && (
-            <button
-              aria-label={`${LABEL_MARK_COMPLETE_ARIA}: ${task.title}`}
-              onClick={handleComplete}
-              className="shrink-0 px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
-            >
-              {LABEL_MARK_COMPLETE}
-            </button>
-          )
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {task.assignedTo && <AssigneeAvatar name={task.assignedTo} />}
+          {task.completed ? (
+            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+              {LABEL_COMPLETED}
+            </span>
+          ) : (
+            onComplete && (
+              <button
+                aria-label={`${LABEL_MARK_COMPLETE_ARIA}: ${task.title}`}
+                onClick={handleComplete}
+                className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+              >
+                {LABEL_MARK_COMPLETE}
+              </button>
+            )
+          )}
+        </div>
       </div>
       {task.description && (
         <p

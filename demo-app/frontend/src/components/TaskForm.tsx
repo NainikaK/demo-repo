@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { createTask } from '../hooks/useCreateTask';
+import { useAssignableUsers } from '../hooks/useAssignableUsers';
 import type { Task } from '../types';
 import {
   LABEL_ADD_TASK,
   LABEL_ADD_TASK_ARIA,
+  LABEL_ASSIGNED_TO,
+  LABEL_ASSIGNED_TO_PLACEHOLDER,
   LABEL_DESCRIPTION,
   LABEL_DESCRIPTION_PLACEHOLDER,
   LABEL_DUE_DATE,
@@ -22,19 +25,24 @@ export interface TaskFormProps {
 const EMPTY_TITLE = '';
 const EMPTY_DESCRIPTION = '';
 const EMPTY_DUE_DATE = '';
+const EMPTY_ASSIGNED_TO = '';
 
 export function TaskForm({ onTaskCreated }: TaskFormProps) {
   const [title, setTitle] = useState<string>(EMPTY_TITLE);
   const [description, setDescription] = useState<string>(EMPTY_DESCRIPTION);
   const [dueDate, setDueDate] = useState<string>(EMPTY_DUE_DATE);
+  const [assignedTo, setAssignedTo] = useState<string>(EMPTY_ASSIGNED_TO);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
+
+  const { users } = useAssignableUsers();
 
   const resetForm = () => {
     setTitle(EMPTY_TITLE);
     setDescription(EMPTY_DESCRIPTION);
     setDueDate(EMPTY_DUE_DATE);
+    setAssignedTo(EMPTY_ASSIGNED_TO);
     setTitleError(null);
     setSubmitError(null);
   };
@@ -62,6 +70,7 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
         title: title.trim(),
         ...(description.trim() ? { description: description.trim() } : {}),
         ...(dueDate ? { dueDate } : {}),
+        ...(assignedTo ? { assignedTo } : {}),
       };
       const newTask = await createTask(payload);
       onTaskCreated(newTask);
@@ -146,6 +155,29 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
             rows={3}
             className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors resize-none"
           />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label
+            htmlFor="task-assigned-to"
+            className="text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            {LABEL_ASSIGNED_TO}
+          </label>
+          <select
+            id="task-assigned-to"
+            value={assignedTo}
+            onChange={(e) => setAssignedTo(e.target.value)}
+            aria-label={LABEL_ASSIGNED_TO}
+            className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          >
+            <option value="">{LABEL_ASSIGNED_TO_PLACEHOLDER}</option>
+            {users.map((user) => (
+              <option key={user} value={user}>
+                {user}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="flex flex-col gap-1">

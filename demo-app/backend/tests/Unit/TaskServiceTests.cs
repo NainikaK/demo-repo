@@ -1,12 +1,14 @@
 using DemoApp.Api.DTOs;
 using DemoApp.Api.Services;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace DemoApp.Tests.Unit;
 
 public sealed class TaskServiceTests
 {
-    private readonly TaskService _sut = new();
+    private readonly TaskService _sut = new(NullLogger<TaskService>.Instance);
 
     [Fact]
     public async Task GetAllTasksAsync_ReturnsAllTasks_WhenTasksExist()
@@ -51,7 +53,7 @@ public sealed class TaskServiceTests
         Assert.NotNull(task);
         Assert.Equal("New Task", task.Title);
         Assert.Equal("A description", task.Description);
-        Assert.Equal(new DateOnly(2025, 9, 1), task.DueDate);
+        Assert.Equal("2025-09-01", task.DueDate);
         Assert.False(task.Completed);
         Assert.NotEmpty(task.Id);
     }
