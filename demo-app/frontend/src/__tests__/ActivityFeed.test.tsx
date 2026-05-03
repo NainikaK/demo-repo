@@ -1,7 +1,27 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { ActivityFeed } from '../components/ActivityFeed';
+import { CommentPanel } from '../components/CommentPanel';
 import type { ActivityEntry } from '../types';
+
+vi.mock('../hooks/useComments', () => ({
+  useComments: () => ({
+    comments: [],
+    fetchLoading: false,
+    fetchError: null,
+    fetchComments: vi.fn(),
+    postComment: vi.fn(),
+  }),
+}));
+
+vi.mock('../hooks/useActivity', () => ({
+  useActivity: () => ({
+    entries: [],
+    fetchLoading: false,
+    fetchError: null,
+    fetchActivity: vi.fn(),
+  }),
+}));
 
 const makeEntry = (id: string, description: string, createdAt: string): ActivityEntry => ({
   id,
@@ -45,5 +65,26 @@ describe('ActivityFeed', () => {
 
     expect(screen.queryByText('No activity recorded yet.')).not.toBeInTheDocument();
     expect(screen.getByText('Failed to load activity. Please try again.')).toBeInTheDocument();
+  });
+});
+
+describe('CommentPanel interaction test', () => {
+  it('clicking the Activity tab shows the ActivityFeed component', () => {
+    const activeTask = { id: 'task-1', title: 'My Test Task' };
+    const onClose = vi.fn();
+    const onCommentAdded = vi.fn();
+
+    render(
+      <CommentPanel
+        activeTask={activeTask}
+        onClose={onClose}
+        onCommentAdded={onCommentAdded}
+      />
+    );
+
+    const activityTab = screen.getByRole('button', { name: 'Show activity tab' });
+    fireEvent.click(activityTab);
+
+    expect(screen.getByText('No activity recorded yet.')).toBeInTheDocument();
   });
 });
