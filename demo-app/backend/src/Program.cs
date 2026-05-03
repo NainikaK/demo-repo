@@ -24,8 +24,8 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddSingleton<IWeatherService, WeatherService>();
 builder.Services.AddSingleton<ITaskService, TaskService>();
+builder.Services.AddSingleton<IWeatherService, WeatherService>();
 
 var app = builder.Build();
 
