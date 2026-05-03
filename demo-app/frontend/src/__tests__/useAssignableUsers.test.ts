@@ -69,7 +69,7 @@ describe('useComments', () => {
 
     await waitFor(() => expect(result.current.fetchLoading).toBe(true));
 
-    act(() => {
+    await act(async () => {
       resolve({ ok: true, json: async () => [] });
     });
     await waitFor(() => expect(result.current.fetchLoading).toBe(false));
