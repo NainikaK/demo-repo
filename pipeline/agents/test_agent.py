@@ -50,6 +50,13 @@ _VALID_TEST_ROOTS: tuple[str, ...] = (_FRONTEND_TEST_DIR, _BACKEND_TEST_ROOT)
 _TEST_FILE_EXTENSIONS: frozenset[str] = frozenset({".ts", ".tsx", ".cs"})
 _PROMPT_PATH = _PIPELINE_DIR / "prompts" / "test.md"
 
+_TS_CODE_MARKERS: tuple[str, ...] = (
+    "import ", "describe(", "it(", "test(", "export ", "const ", "function ", "vi.",
+)
+_CS_CODE_MARKERS: tuple[str, ...] = (
+    "using ", "namespace ", "class ", "[Fact]", "public ", "private ", "protected ",
+)
+
 _JSON_RECOVERY_SYSTEM = """\
 You are a JSON extractor. The input contains a JSON object somewhere inside it. \
 Extract the JSON object and return it verbatim. \
@@ -598,6 +605,23 @@ def _correct_backend_tests(
     return best
 
 
+def _is_plausible_code(content: str, file_path: str) -> bool:
+    """Return True only if content looks like source code for the given file type.
+
+    Rejects short strings and non-code text (e.g. assertion messages Claude accidentally
+    returns as {"corrected_content": "expected 'X' to be 'Y'"}).
+    """
+    stripped = content.strip()
+    if len(stripped) < 80:
+        return False
+    suffix = Path(file_path).suffix.lower()
+    if suffix in (".ts", ".tsx"):
+        return any(m in stripped for m in _TS_CODE_MARKERS)
+    if suffix == ".cs":
+        return any(m in stripped for m in _CS_CODE_MARKERS)
+    return True
+
+
 def _extract_corrected_content(raw_text: str, context: str) -> str | None:
     """Extract the corrected file content from a Claude correction response.
 
@@ -605,7 +629,8 @@ def _extract_corrected_content(raw_text: str, context: str) -> str | None:
     1. Parse as JSON {"corrected_content": "..."} with leading/trailing prose tolerance.
     2. Extract code from any markdown code fence (any language tag or no tag).
     3. Find the first contiguous code-like block starting with import/using/export/comment.
-    Returns None if no strategy yields content longer than 100 characters.
+    Returns None if no strategy yields content longer than 100 characters that passes
+    the _is_plausible_code check.
     """
     text = _strip_fences(raw_text)
     decoder = json.JSONDecoder()
@@ -617,7 +642,12 @@ def _extract_corrected_content(raw_text: str, context: str) -> str | None:
             if isinstance(parsed, dict) and "corrected_content" in parsed:
                 content = parsed["corrected_content"]
                 if isinstance(content, str) and content.strip():
-                    return content
+                    if _is_plausible_code(content, context):
+                        return content
+                    print(
+                        f"{_LOG_PREFIX} warning: corrected_content for {context} "
+                        "failed plausibility check — not code"
+                    )
         except json.JSONDecodeError:
             pass
     # Fallback 2: extract code from any markdown code fence in the original response
@@ -628,7 +658,7 @@ def _extract_corrected_content(raw_text: str, context: str) -> str | None:
     )
     if fence_match:
         code = fence_match.group(1).strip()
-        if code:
+        if code and _is_plausible_code(code, context):
             return code
     # Fallback 3: find the first contiguous code-like block
     code_match = re.search(
@@ -637,7 +667,7 @@ def _extract_corrected_content(raw_text: str, context: str) -> str | None:
     )
     if code_match:
         candidate = code_match.group(1).strip()
-        if len(candidate) > 100:
+        if len(candidate) > 100 and _is_plausible_code(candidate, context):
             return candidate
     print(f"{_LOG_PREFIX} warning: could not parse corrected_content JSON for {context}")
     return None
