@@ -2,69 +2,64 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { TaskForm } from '../components/TaskForm';
-import * as useAssignableUsersModule from '../hooks/useAssignableUsers';
-import * as useCreateTaskModule from '../hooks/useCreateTask';
-import type { Task } from '../types';
 
-const mockUsers = ['Nainika K', 'Anna', 'Elsa', 'Sam D', 'Jacey'];
+vi.mock('../hooks/useAssignableUsers', () => ({
+  useAssignableUsers: () => ({ users: [], loading: false, error: null }),
+}));
 
-const mockTask: Task = {
-  id: '10',
-  title: 'Test Task',
-  completed: false,
-  createdAt: '2024-01-01T00:00:00.000Z',
-};
+vi.mock('../hooks/useCreateTask', () => ({
+  createTask: vi.fn(),
+}));
+
+import * as createTaskModule from '../hooks/useCreateTask';
 
 describe('TaskForm', () => {
   beforeEach(() => {
-    vi.spyOn(useAssignableUsersModule, 'useAssignableUsers').mockReturnValue({
-      users: mockUsers,
-      loading: false,
-      error: null,
-    });
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('render test - renders the Assigned to dropdown with placeholder and user options', () => {
-    const onTaskCreated = vi.fn();
-    render(<TaskForm onTaskCreated={onTaskCreated} />);
+  it('render test - renders the form with a priority select defaulting to medium', () => {
+    render(<TaskForm onTaskCreated={vi.fn()} />);
 
-    const select = screen.getByRole('combobox', { name: 'Assigned to' });
-    expect(select).toBeInTheDocument();
-
-    expect(screen.getByText('\u2014 Select user \u2014')).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Nainika K' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Anna' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Elsa' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Sam D' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Jacey' })).toBeInTheDocument();
+    const prioritySelect = screen.getByRole('combobox', { name: 'Priority' });
+    expect(prioritySelect).toBeInTheDocument();
+    expect((prioritySelect as HTMLSelectElement).value).toBe('medium');
   });
 
-  it('interaction test - selecting a user from the dropdown updates the selected value', async () => {
+  it('interaction test - allows changing the priority to high and submits with that priority', async () => {
+    const createdTask = {
+      id: '10',
+      title: 'New Task',
+      completed: false,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      priority: 'high' as const,
+    };
+    vi.spyOn(createTaskModule, 'createTask').mockResolvedValueOnce(createdTask);
     const onTaskCreated = vi.fn();
+
     render(<TaskForm onTaskCreated={onTaskCreated} />);
 
-    const select = screen.getByRole('combobox', { name: 'Assigned to' });
-    await userEvent.selectOptions(select, 'Anna');
+    await userEvent.type(screen.getByLabelText(/Title/i), 'New Task');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Priority' }), 'high');
+    await userEvent.click(screen.getByRole('button', { name: 'Add new task' }));
 
-    expect((screen.getByRole('option', { name: 'Anna' }) as HTMLOptionElement).selected).toBe(true);
+    await waitFor(() => {
+      expect(createTaskModule.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({ priority: 'high' }),
+      );
+    });
   });
 
-  it('edge case - form can be submitted without selecting an assignee', async () => {
-    const onTaskCreated = vi.fn();
-    vi.spyOn(useCreateTaskModule, 'createTask').mockResolvedValueOnce(mockTask);
+  it('edge case - shows a validation error when submitted with an empty title', async () => {
+    render(<TaskForm onTaskCreated={vi.fn()} />);
 
-    render(<TaskForm onTaskCreated={onTaskCreated} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Add new task' }));
 
-    const titleInput = screen.getByRole('textbox', { name: /title/i });
-    await userEvent.type(titleInput, 'New Task');
-
-    const submitButton = screen.getByRole('button', { name: 'Add new task' });
-    await userEvent.click(submitButton);
-
-    await waitFor(() => expect(onTaskCreated).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText('Title is required.')).toBeInTheDocument();
   });
 });

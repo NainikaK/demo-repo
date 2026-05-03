@@ -4,42 +4,45 @@ import { describe, expect, it, vi } from 'vitest';
 import { TaskCard } from '../components/TaskCard';
 import type { Task } from '../types';
 
-vi.mock('../components/AssigneeAvatar', () => ({
-  AssigneeAvatar: ({ name }: { name: string }) => (
-    <span data-testid="assignee-avatar" aria-label={name} />
-  ),
+vi.mock('../components/PriorityIcon', () => ({
+  PriorityIcon: () => <span data-testid="priority-icon" />,
 }));
 
-const baseTask: Task = {
+vi.mock('../components/AssigneeAvatar', () => ({
+  AssigneeAvatar: () => <span data-testid="assignee-avatar" />,
+}));
+
+const makeTask = (overrides: Partial<Task> = {}): Task => ({
   id: '1',
-  title: 'Sample Task',
+  title: 'Test Task',
   completed: false,
-  createdAt: '2024-01-10T09:00:00.000Z',
-};
+  createdAt: '2024-01-01T00:00:00.000Z',
+  priority: 'medium',
+  ...overrides,
+});
 
 describe('TaskCard', () => {
-  it('render test - renders the task title and shows an avatar when assignedTo is set', () => {
-    const task: Task = { ...baseTask, assignedTo: 'Elsa' };
-    render(<TaskCard task={task} />);
+  it('render test - renders task title and priority icon', () => {
+    render(<TaskCard task={makeTask()} />);
 
-    expect(screen.getByText('Sample Task')).toBeInTheDocument();
-    expect(screen.getByTestId('assignee-avatar')).toBeInTheDocument();
+    expect(screen.getByText('Test Task')).toBeInTheDocument();
+    expect(screen.getByTestId('priority-icon')).toBeInTheDocument();
   });
 
-  it('interaction test - calls onComplete with the task id when Mark Complete button is clicked', async () => {
+  it('interaction test - calls onComplete with the task id when the complete button is clicked', async () => {
     const onComplete = vi.fn().mockResolvedValue(undefined);
-    render(<TaskCard task={baseTask} onComplete={onComplete} />);
+    render(<TaskCard task={makeTask()} onComplete={onComplete} />);
 
-    const button = screen.getByRole('button', { name: /mark task as complete/i });
+    const button = screen.getByRole('button', { name: /Mark task as complete/i });
     await userEvent.click(button);
 
     expect(onComplete).toHaveBeenCalledWith('1');
   });
 
-  it('edge case - renders without crashing and shows no avatar when assignedTo is absent', () => {
-    render(<TaskCard task={baseTask} />);
+  it('edge case - renders Completed badge and no complete button when task is already completed', () => {
+    render(<TaskCard task={makeTask({ completed: true })} onComplete={vi.fn()} />);
 
-    expect(screen.getByText('Sample Task')).toBeInTheDocument();
-    expect(screen.queryByTestId('assignee-avatar')).not.toBeInTheDocument();
+    expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });
