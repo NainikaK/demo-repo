@@ -1,1 +1,100 @@
-import { render, screen, waitFor } from '@testing-library/react';\nimport userEvent from '@testing-library/user-event';\nimport { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';\nimport { ActivityFeed } from '../components/ActivityFeed';\nimport { CommentPanel } from '../components/CommentPanel';\nimport { renderHook, act } from '@testing-library/react';\nimport { useComments } from '../hooks/useComments';\nimport type { ActivityEntry } from '../types';\n\nconst makeEntry = (id: string, description: string, createdAt: string): ActivityEntry => ({\n  id,\n  taskId: 'task-1',\n  description,\n  createdAt,\n});\n\ndescribe('ActivityFeed', () => {\n  it('render test - renders a list of activity entries with descriptions', () => {\n    const entries: ActivityEntry[] = [\n      makeEntry('1', 'Task created', '2024-01-01T10:00:00.000Z'),\n      makeEntry('2', 'Comment added', '2024-01-02T11:00:00.000Z'),\n    ];\n\n    render(<ActivityFeed entries={entries} fetchLoading={false} fetchError={null} />);\n\n    expect(screen.getByText('Task created')).toBeInTheDocument();\n    expect(screen.getByText('Comment added')).toBeInTheDocument();\n  });\n\n  it('interaction test - renders the loading message when fetchLoading is true', () => {\n    render(<ActivityFeed entries={[]} fetchLoading={true} fetchError={null} />);\n\n    expect(screen.getByText('Loading activity...')).toBeInTheDocument();\n  });\n\n  it('edge case - renders the empty message when entries array is empty and not loading', () => {\n    render(<ActivityFeed entries={[]} fetchLoading={false} fetchError={null} />);\n\n    expect(screen.getByText('No activity recorded yet.')).toBeInTheDocument();\n  });\n});\n\ndescribe(' CommentPanel interaction test', () => {\n  beforeEach(() => {\n    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({\n      ok: true,\n      json: async () => [],\n    }));\n  });\n\n  afterEach(() => {\n    vi.unstubAllGlobals();\n  });\n\n  it('clicking the Activity tab renders the ActivityFeed', async () => {\n    const user = userEvent.setup();\n    const activeTask = { id: 'task-1', title: 'Test Task' };\n    const onClose = vi.fn();\n    const onCommentAdded = vi.fn();\n\n    render(\n      <CommentPanel\n        activeTask={activeTask}\n        onClose={onClose}\n        onCommentAdded={onCommentAdded}\n      />\n    );\n\n    const activityTab = screen.getByRole('button', { name: 'Show activity tab' });\n    await user.click(activityTab);\n\n    await waitFor(() => {\n      expect(screen.getByText('No activity recorded yet.')).toBeInTheDocument();\n    });\n  });\n});\n\ndescribe(' useComments fetchComments error case', () => {\n  beforeEach(() => {\n    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({\n      ok: false,\n      status: 500,\n      json: async () => ({}),\n    }));\n  });\n\n  afterEach(() => {\n    vi.unstubAllGlobals();\n  });\n\n  it('sets fetchError when response is not ok', async () => {\n    const { result } = renderHook(() => useComments());\n\n    await act(async () => {\n      await result.current.fetchComments('task-1');\n    });\n\n    expect(result.current.fetchError).toBe('Request failed with status 500');\n  });\n});\n"}
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { ActivityFeed } from '../components/ActivityFeed';
+import { CommentPanel } from '../components/CommentPanel';
+import { renderHook, act } from '@testing-library/react';
+import { useComments } from '../hooks/useComments';
+import type { ActivityEntry } from '../types';
+
+const makeEntry = (id: string, description: string, createdAt: string): ActivityEntry => ({
+  id,
+  taskId: 'task-1',
+  description,
+  createdAt,
+});
+
+describe('ActivityFeed', () => {
+  it('render test - renders a list of activity entries with descriptions', () => {
+    const entries: ActivityEntry[] = [
+      makeEntry('1', 'Task created', '2024-01-01T10:00:00.000Z'),
+      makeEntry('2', 'Comment added', '2024-01-02T11:00:00.000Z'),
+    ];
+
+    render(<ActivityFeed entries={entries} fetchLoading={false} fetchError={null} />);
+
+    expect(screen.getByText('Task created')).toBeInTheDocument();
+    expect(screen.getByText('Comment added')).toBeInTheDocument();
+  });
+
+  it('interaction test - renders the loading message when fetchLoading is true', () => {
+    render(<ActivityFeed entries={[]} fetchLoading={true} fetchError={null} />);
+
+    expect(screen.getByText('Loading activity...')).toBeInTheDocument();
+  });
+
+  it('edge case - renders the empty message when entries array is empty and not loading', () => {
+    render(<ActivityFeed entries={[]} fetchLoading={false} fetchError={null} />);
+
+    expect(screen.getByText('No activity recorded yet.')).toBeInTheDocument();
+  });
+});
+
+describe(' CommentPanel interaction test', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('clicking the Activity tab renders the ActivityFeed', async () => {
+    const user = userEvent.setup();
+    const activeTask = { id: 'task-1', title: 'Test Task' };
+    const onClose = vi.fn();
+    const onCommentAdded = vi.fn();
+
+    render(
+      <CommentPanel
+        activeTask={activeTask}
+        onClose={onClose}
+        onCommentAdded={onCommentAdded}
+      />
+    );
+
+    const activityTab = screen.getByRole('button', { name: 'Show activity tab' });
+    await user.click(activityTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('No activity recorded yet.')).toBeInTheDocument();
+    });
+  });
+});
+
+describe(' useComments fetchComments error case', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('sets fetchError when response is not ok', async () => {
+    const { result } = renderHook(() => useComments());
+
+    await act(async () => {
+      await result.current.fetchComments('task-1');
+    });
+
+    expect(result.current.fetchError).toBe('Failed to load comments. Please try again.');
+  });
+});
