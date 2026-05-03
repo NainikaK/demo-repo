@@ -16,7 +16,7 @@ export const LABEL_TITLE = 'Title';
 export const LABEL_DESCRIPTION = 'Description';
 export const LABEL_DUE_DATE = 'Due Date';
 export const LABEL_ASSIGNED_TO = 'Assigned to';
-export const LABEL_ASSIGNED_TO_PLACEHOLDER = '— Select user —';
+export const LABEL_ASSIGNED_TO_PLACEHOLDER = '\u2014 Select user \u2014';
 export const LABEL_ADD_TASK = 'Add Task';
 export const LABEL_ADD_TASK_ARIA = 'Add new task';
 export const LABEL_TITLE_REQUIRED = 'Title is required.';
@@ -45,3 +45,5 @@ export const LABEL_TASK_FORM_HEADING_ICON_ARIA = 'decorative pencil icon';
 export const LABEL_EYE_ICON_ARIA = 'decorative eye icon';
 
 export const LABEL_ASSIGNEE_AVATAR_ARIA_PREFIX = 'Assigned to';
+
+export const LABEL_CHECK_TICK_ICON_ARIA = 'check tick icon';
