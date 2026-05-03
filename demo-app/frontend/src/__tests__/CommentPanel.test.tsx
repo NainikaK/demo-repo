@@ -7,13 +7,14 @@ const mocks = vi.hoisted(() => ({
   fetchComments: vi.fn().mockResolvedValue(undefined),
   postComment: vi.fn().mockResolvedValue(null),
   fetchActivity: vi.fn().mockResolvedValue(undefined),
+  commentsFetchError: null as string | null,
 }));
 
 vi.mock('../hooks/useComments', () => ({
   useComments: () => ({
     comments: [],
     fetchLoading: false,
-    fetchError: null,
+    fetchError: mocks.commentsFetchError,
     fetchComments: mocks.fetchComments,
     postComment: mocks.postComment,
   }),
@@ -43,6 +44,7 @@ const activeTask = { id: 'task-1', title: 'My Task' };
 describe('CommentPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.commentsFetchError = null;
   });
 
   afterEach(() => {
@@ -93,15 +95,7 @@ describe('CommentPanel', () => {
 
   describe('useComments fetchComments error case', () => {
     it('sets fetchError when response is not ok', () => {
-      vi.doMock('../hooks/useComments', () => ({
-        useComments: () => ({
-          comments: [],
-          fetchLoading: false,
-          fetchError: 'Failed to load comments. Please try again.',
-          fetchComments: mocks.fetchComments,
-          postComment: mocks.postComment,
-        }),
-      }));
+      mocks.commentsFetchError = 'Failed to load comments. Please try again.';
 
       render(
         <CommentPanel
