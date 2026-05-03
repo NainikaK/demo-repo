@@ -12,17 +12,25 @@ describe('useAssignableUsers', () => {
   });
 
   it('success case - returns users array when fetch succeeds', async () => {
-    const mockUsers = ['Nainika K', 'Anna', 'Elsa', 'Sam D', 'Jacey'];
+    const mockApiResponse = {
+      users: [
+        { id: 1, name: 'Nainika K' },
+        { id: 2, name: 'Anna' },
+        { id: 3, name: 'Elsa' },
+        { id: 4, name: 'Sam D' },
+        { id: 5, name: 'Jacey' },
+      ],
+    };
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
-      json: async () => mockUsers,
+      json: async () => mockApiResponse,
     });
 
     const { result } = renderHook(() => useAssignableUsers());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.users).toEqual(mockUsers);
+    expect(result.current.users).toEqual(mockApiResponse.users.map((u) => u.name));
     expect(result.current.error).toBeNull();
   });
 
