@@ -31,3 +31,10 @@ export interface ActiveCommentTask {
   id: string;
   title: string;
 }
+
+export interface ActivityEntry {
+  id: string;
+  taskId: string;
+  description: string;
+  createdAt: string;
+}

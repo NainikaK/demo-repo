@@ -8,4 +8,10 @@ export const USERS_URL = '/api/v1/users';
 export const COMMENTS_URL = (taskId: string): string =>
   `/api/v1/tasks/${taskId}/comments`;
 
+export const ACTIVITY_URL = (taskId: string): string =>
+  `/api/v1/tasks/${taskId}/activity`;
+
 export const COMMENT_MAX_LENGTH = 500;
+
+export const TAB_COMMENTS = 'comments' as const;
+export const TAB_ACTIVITY = 'activity' as const;

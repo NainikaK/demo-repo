@@ -77,3 +77,12 @@ export const LABEL_COMMENT_VALIDATION_TOO_LONG = 'Comment must not exceed 500 ch
 export const LABEL_COMMENT_NO_COMMENTS = 'No comments yet.';
 export const LABEL_COMMENT_OVERLAY_ARIA = 'Close panel overlay';
 export const LABEL_COMMENT_PANEL_ARIA_PREFIX = 'Comments for';
+
+export const LABEL_TAB_COMMENTS = 'Comments';
+export const LABEL_TAB_ACTIVITY = 'Activity';
+export const LABEL_TAB_COMMENTS_ARIA = 'Show comments tab';
+export const LABEL_TAB_ACTIVITY_ARIA = 'Show activity tab';
+
+export const LABEL_ACTIVITY_LOADING = 'Loading activity...';
+export const LABEL_ACTIVITY_FETCH_ERROR = 'Failed to load activity. Please try again.';
+export const LABEL_ACTIVITY_EMPTY = 'No activity recorded yet.';

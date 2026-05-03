@@ -1,10 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { Comment } from '../types';
 import { COMMENTS_URL } from '../utils/constants';
-import {
-  LABEL_COMMENT_FETCH_ERROR,
-  LABEL_COMMENT_SAVE_ERROR,
-} from '../utils/strings';
 
 interface UseCommentsResult {
   comments: Comment[];
@@ -25,12 +21,15 @@ export function useComments(): UseCommentsResult {
     try {
       const response = await fetch(COMMENTS_URL(taskId));
       if (!response.ok) {
-        throw new Error(LABEL_COMMENT_FETCH_ERROR);
+        throw new Error(`Request failed with status ${response.status}`);
       }
       const data: Comment[] = await response.json();
       setComments(data);
-    } catch {
-      setFetchError(LABEL_COMMENT_FETCH_ERROR);
+    } catch (err) {
+      setFetchError(
+        err instanceof Error ? err.message : 'Unknown error fetching comments'
+      );
+      setComments([]);
     } finally {
       setFetchLoading(false);
     }
@@ -45,11 +44,11 @@ export function useComments(): UseCommentsResult {
           body: JSON.stringify({ text }),
         });
         if (!response.ok) {
-          throw new Error(LABEL_COMMENT_SAVE_ERROR);
+          throw new Error(`Request failed with status ${response.status}`);
         }
-        const created: Comment = await response.json();
-        setComments((prev) => [...prev, created]);
-        return created;
+        const newComment: Comment = await response.json();
+        setComments((prev) => [...prev, newComment]);
+        return newComment;
       } catch {
         return null;
       }
