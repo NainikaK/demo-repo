@@ -6,7 +6,7 @@ import {
   LABEL_TOGGLE_TO_DARK,
   LABEL_TOGGLE_TO_LIGHT,
 } from '../utils/strings';
-import { CheckTickIcon } from './CheckTickIcon';
+import { PaperIcon } from './PaperIcon';
 import { ThemeIcon } from './ThemeIcon';
 import { WeatherWidget } from './WeatherWidget';
 
@@ -17,7 +17,7 @@ export function Header() {
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm px-6 py-4 flex items-center justify-between">
       <h1 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-        <CheckTickIcon className="w-[1em] h-[1em] pointer-events-none select-none" />
+        <PaperIcon className="w-[1em] h-[1em] pointer-events-none select-none" />
         {APP_TITLE}
       </h1>
       <div className="flex items-center gap-2">

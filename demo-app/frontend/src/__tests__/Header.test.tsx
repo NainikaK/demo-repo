@@ -12,9 +12,9 @@ vi.mock('../components/ThemeIcon', () => ({
   ThemeIcon: () => <span data-testid="theme-icon" />,
 }));
 
-vi.mock('../components/CheckTickIcon', () => ({
-  CheckTickIcon: ({ className }: { className?: string }) => (
-    <span data-testid="check-tick-icon" className={className} />
+vi.mock('../components/PaperIcon', () => ({
+  PaperIcon: ({ className }: { className?: string }) => (
+    <span data-testid="paper-icon" className={className} />
   ),
 }));
 
@@ -30,11 +30,27 @@ describe('Header', () => {
     vi.restoreAllMocks();
   });
 
-  it('render test - renders the Task Manager title and the CheckTickIcon beside it', () => {
+  it('render test - renders the Task Manager title and the PaperIcon beside it', () => {
     render(<Header />);
 
     expect(screen.getByText('Task Manager')).toBeInTheDocument();
-    expect(screen.getByTestId('check-tick-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('paper-icon')).toBeInTheDocument();
+  });
+
+  it('render test - does not render the CheckTickIcon', () => {
+    render(<Header />);
+
+    expect(screen.queryByTestId('check-tick-icon')).not.toBeInTheDocument();
+  });
+
+  it('render test - PaperIcon has correct sizing and non-interactive classes', () => {
+    render(<Header />);
+
+    const paperIcon = screen.getByTestId('paper-icon');
+    expect(paperIcon).toHaveClass('w-[1em]');
+    expect(paperIcon).toHaveClass('h-[1em]');
+    expect(paperIcon).toHaveClass('pointer-events-none');
+    expect(paperIcon).toHaveClass('select-none');
   });
 
   it('interaction test - clicking the theme toggle button calls toggleTheme', async () => {
@@ -61,6 +77,6 @@ describe('Header', () => {
     render(<Header />);
 
     expect(screen.getByRole('button', { name: 'Switch to light mode' })).toBeInTheDocument();
-    expect(screen.getByTestId('check-tick-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('paper-icon')).toBeInTheDocument();
   });
 });
