@@ -1,4 +1,5 @@
 import { AssigneeAvatar } from './AssigneeAvatar';
+import { PriorityIcon } from './PriorityIcon';
 import type { Task } from '../types';
 import {
   LABEL_COMPLETED,
@@ -26,15 +27,18 @@ export function TaskCard({ task, onComplete }: TaskCardProps) {
       }
     >
       <div className="flex items-start justify-between gap-2">
-        <h2
-          className={
-            task.completed
-              ? 'text-base font-medium text-gray-400 dark:text-gray-500 line-through'
-              : 'text-base font-medium text-gray-900 dark:text-white'
-          }
-        >
-          {task.title}
-        </h2>
+        <div className="flex items-center gap-2">
+          <PriorityIcon priority={task.priority} />
+          <h2
+            className={
+              task.completed
+                ? 'text-base font-medium text-gray-400 dark:text-gray-500 line-through'
+                : 'text-base font-medium text-gray-900 dark:text-white'
+            }
+          >
+            {task.title}
+          </h2>
+        </div>
         <div className="flex items-center gap-2 shrink-0">
           {task.assignedTo && <AssigneeAvatar name={task.assignedTo} />}
           {task.completed ? (

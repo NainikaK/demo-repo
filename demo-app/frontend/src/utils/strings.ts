@@ -50,3 +50,12 @@ export const LABEL_CHECK_TICK_ICON_ARIA = 'check tick icon';
 
 export const LABEL_COMPLETED_TASKS_HEADING = 'Completed Tasks';
 export const LABEL_NO_COMPLETED_TASKS = 'No completed tasks yet';
+
+export const LABEL_PRIORITY = 'Priority';
+export const LABEL_PRIORITY_LOW = 'Low';
+export const LABEL_PRIORITY_MEDIUM = 'Medium';
+export const LABEL_PRIORITY_HIGH = 'High';
+export const LABEL_PRIORITY_FILTER_ALL = 'All Priorities';
+export const LABEL_PRIORITY_FILTER_ARIA = 'Filter tasks by priority';
+export const LABEL_PRIORITY_CLEAR_ARIA = 'Clear priority filter';
+export const LABEL_PRIORITY_ICON_ARIA_PREFIX = 'Priority:';

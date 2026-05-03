@@ -4,8 +4,10 @@ import { LoadMoreButton } from '../components/LoadMoreButton';
 import { SmileyIcon } from '../components/SmileyIcon';
 import { EyeIcon } from '../components/EyeIcon';
 import { CompletedTasksSection } from '../components/CompletedTasksSection';
+import { PriorityFilter } from '../components/PriorityFilter';
 import { useUpcomingTasks } from '../hooks/useUpcomingTasks';
 import { useCompletedTasks } from '../hooks/useCompletedTasks';
+import { usePriorityFilter } from '../hooks/usePriorityFilter';
 import type { Task } from '../types';
 import {
   LABEL_COMPLETE_ERROR,
@@ -33,6 +35,10 @@ export function HomePage() {
   } = useUpcomingTasks();
 
   const { completedTasks } = useCompletedTasks();
+
+  const { selectedPriority, setSelectedPriority, filterTasks } = usePriorityFilter();
+
+  const filteredTasks = filterTasks(visibleTasks);
 
   const handleTaskCreated = (task: Task) => {
     addTask(task);
@@ -71,16 +77,20 @@ export function HomePage() {
         {LABEL_TASKS_HEADING}
         <EyeIcon className="inline-block w-[1em] h-[1em]" />
       </h2>
+      <PriorityFilter
+        selectedPriority={selectedPriority}
+        onChange={setSelectedPriority}
+      />
       {completeError && (
         <p className="mb-4 text-sm text-red-600 dark:text-red-400">
           {LABEL_COMPLETE_ERROR}
         </p>
       )}
-      {visibleTasks.length === 0 ? (
+      {filteredTasks.length === 0 ? (
         <p className="text-gray-500 dark:text-gray-400">{LABEL_NO_TASKS}</p>
       ) : (
         <ul className={`flex flex-col gap-3 overflow-y-auto ${UPCOMING_TASKS_MAX_HEIGHT}`}>
-          {visibleTasks.map((task) => (
+          {filteredTasks.map((task) => (
             <li key={task.id}>
               <TaskCard task={task} onComplete={completeTask} />
             </li>

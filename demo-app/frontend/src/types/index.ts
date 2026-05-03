@@ -1,3 +1,5 @@
+export type Priority = 'low' | 'medium' | 'high';
+
 export interface Task {
   id: string;
   title: string;
@@ -7,6 +9,7 @@ export interface Task {
   createdAt: string;
   completedAt?: string;
   assignedTo?: string;
+  priority: Priority;
 }
 
 export interface CreateTaskPayload {
@@ -14,4 +17,5 @@ export interface CreateTaskPayload {
   description?: string;
   dueDate?: string;
   assignedTo?: string;
+  priority?: Priority;
 }
