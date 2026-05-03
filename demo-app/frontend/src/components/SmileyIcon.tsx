@@ -1,4 +1,3 @@
-import React from 'react';
 
 interface SmileyIconProps {
   size?: number;

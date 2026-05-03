@@ -13,7 +13,7 @@ export interface UseUpcomingTasksResult {
   completeError: string | null;
   refetch: () => void;
   addTask: (task: Task) => void;
-  completeTask: (id: string) => void;
+  completeTask: (id: string) => Promise<void>;
   loadMore: () => void;
 }
 
@@ -23,7 +23,7 @@ export function useUpcomingTasks(): UseUpcomingTasksResult {
 
   const upcomingTasks = useMemo<Task[]>(() => {
     return tasks
-      .filter((task) => !task.completedAt)
+      .filter((task) => !task.completed)
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [tasks]);
 

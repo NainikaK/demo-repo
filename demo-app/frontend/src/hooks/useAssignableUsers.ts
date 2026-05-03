@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import { USERS_URL } from '../utils/constants';
 
+interface UserFromApi {
+  id: number;
+  name: string;
+}
+
+interface UsersApiResponse {
+  users: UserFromApi[];
+}
+
 interface UseAssignableUsersResult {
   users: string[];
   loading: boolean;
@@ -23,9 +32,9 @@ export function useAssignableUsers(): UseAssignableUsersResult {
         if (!response.ok) {
           throw new Error(`Request failed with status ${response.status}`);
         }
-        const data: string[] = await response.json();
+        const data: UsersApiResponse = await response.json();
         if (!cancelled) {
-          setUsers(data);
+          setUsers(data.users.map((u) => u.name));
         }
       } catch (err) {
         if (!cancelled) {
