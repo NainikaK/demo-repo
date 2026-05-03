@@ -18,6 +18,19 @@ vi.mock('../components/ActivityFeed', () => ({
   ActivityFeed: () => <div data-testid="activity-feed" />,
 }));
 
+vi.mock('../utils/constants', () => ({
+  COMMENTS_URL: vi.fn((taskId: string) => `/api/v1/tasks/${taskId}/comments`),
+  ACTIVITY_URL: vi.fn((taskId: string) => `/api/v1/tasks/${taskId}/activity`),
+  COMMENT_MAX_LENGTH: 500,
+  TAB_COMMENTS: 'comments',
+  TAB_ACTIVITY: 'activity',
+  TASKS_URL: '/api/v1/tasks',
+  WEATHER_API_URL: '/api/v1/weather',
+  COMPLETE_TASK_URL_TEMPLATE: '/api/v1/tasks/:id/complete',
+  COMPLETE_TASK_URL: vi.fn((id: string) => `/api/v1/tasks/${id}/complete`),
+  USERS_URL: '/api/v1/users',
+}));
+
 const activeTask: ActiveCommentTask = { id: 'task-1', title: 'Test Task' };
 
 describe('CommentPanel', () => {
