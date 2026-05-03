@@ -59,3 +59,6 @@ export const LABEL_PRIORITY_FILTER_ALL = 'All Priorities';
 export const LABEL_PRIORITY_FILTER_ARIA = 'Filter tasks by priority';
 export const LABEL_PRIORITY_CLEAR_ARIA = 'Clear priority filter';
 export const LABEL_PRIORITY_ICON_ARIA_PREFIX = 'Priority:';
+
+export const LABEL_DUE_TODAY = 'Due Today';
+export const LABEL_OVERDUE = 'Overdue';

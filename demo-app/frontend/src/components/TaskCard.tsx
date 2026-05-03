@@ -1,5 +1,6 @@
 import { AssigneeAvatar } from './AssigneeAvatar';
 import { PriorityIcon } from './PriorityIcon';
+import { DueDateBadge } from './DueDateBadge';
 import type { Task } from '../types';
 import {
   LABEL_COMPLETED,
@@ -41,6 +42,7 @@ export function TaskCard({ task, onComplete }: TaskCardProps) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {task.assignedTo && <AssigneeAvatar name={task.assignedTo} />}
+          {!task.completed && <DueDateBadge dueDate={task.dueDate} />}
           {task.completed ? (
             <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
               {LABEL_COMPLETED}
