@@ -51,6 +51,10 @@ _TEST_FILE_EXTENSIONS: frozenset[str] = frozenset({".ts", ".tsx", ".cs"})
 _PROMPT_PATH = _PIPELINE_DIR / "prompts" / "test.md"
 _MAX_FILE_CORRECTIONS = 3  # delete a test file after this many correction attempts
 
+# Matches a top-level describe( call at the very start of a line (column 0).
+# Indented/nested describe blocks are not matched because they start with spaces.
+_TOP_LEVEL_DESCRIBE_RE = re.compile(r'^describe\([\'"]([^\'"]+)[\'"]', re.MULTILINE)
+
 _TS_CODE_MARKERS: tuple[str, ...] = (
     "import ", "describe(", "it(", "test(", "export ", "const ", "function ", "vi.",
 )
@@ -86,6 +90,11 @@ def run(
 
     repo_root = git_utils.get_repo_root()
     frontend_test_dir = repo_root / _FRONTEND_TEST_DIR
+
+    print(f"{_LOG_PREFIX} stripping foreign describe blocks from existing test files")
+    isolation_cleaned = _clean_frontend_test_isolation(repo_root)
+    if isolation_cleaned:
+        print(f"{_LOG_PREFIX} cleaned {len(isolation_cleaned)} file(s) of foreign describe blocks")
 
     # Only delete tests for source files touched by this feature — not unrelated tests.
     changed_stems = {
@@ -140,7 +149,7 @@ def run(
     written_files = _validate_and_write_tests(file_map)
 
     # Stage deletions + new files together so the working tree stays clean
-    files_to_commit = deleted_test_files + written_files
+    files_to_commit = isolation_cleaned + deleted_test_files + written_files
     if files_to_commit:
         commit_message = f"[{work_item_id}] tests: {structured_spec.title}"
         git_utils.commit_changes(files_to_commit, commit_message)
@@ -190,6 +199,10 @@ Common issues to check first:
 - Wrong component under test: the test file name tells you what to test — \
   Header.test.tsx must test the Header component, TaskForm.test.tsx must test TaskForm, etc. \
   Never replace a test for one component with tests for a different component.
+- Single describe block per file: each test file must contain exactly one top-level \
+  describe() block, and its name must start with the file stem. \
+  For example, Header.test.tsx must have exactly one top-level describe('Header', ...) block. \
+  Never add a second top-level describe() for a different component inside the same file.
 - Unstable mock function references causing useEffect re-firing: if a vi.mock factory \
   creates vi.fn() inline like `useX: () => ({ fetchData: vi.fn() })`, each call to useX() \
   returns a NEW vi.fn() reference. When a component's useEffect depends on that function \
@@ -504,6 +517,10 @@ def _correct_frontend_tests(
                 print(f"{_LOG_PREFIX} warning: correction for {rel_path} returned no parseable code — skipping")
                 continue
 
+            if rel_path.endswith(".test.tsx") or rel_path.endswith(".test.ts"):
+                file_stem = Path(rel_path).stem.replace(".test", "")
+                corrected = _strip_foreign_describe_blocks(corrected, file_stem)
+
             if corrected.strip() == current_content.strip():
                 stuck_counts[rel_path] = stuck_counts.get(rel_path, 0) + 1
                 if stuck_counts[rel_path] >= 2:
@@ -631,6 +648,104 @@ def _correct_backend_tests(
             break
 
     return best
+
+
+def _find_describe_block_end(content: str, start: int) -> int:
+    """Return the index just after the closing }); of a describe block.
+
+    Counts curly braces while skipping string literals so nested objects and
+    template literals don't confuse the depth counter.
+    """
+    depth = 0
+    i = start
+    in_string = False
+    string_char = ""
+    while i < len(content):
+        ch = content[i]
+        if in_string:
+            if ch == "\\" and string_char != "`":
+                i += 2
+                continue
+            if ch == string_char:
+                in_string = False
+        else:
+            if ch in ('"', "'", "`"):
+                in_string = True
+                string_char = ch
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    # Consume the trailing ); and the newline so we don't leave a blank line
+                    i += 1
+                    while i < len(content) and content[i] in (" ", "\t", ")", ";"):
+                        i += 1
+                    if i < len(content) and content[i] == "\n":
+                        i += 1
+                    return i
+        i += 1
+    return len(content)
+
+
+def _strip_foreign_describe_blocks(content: str, file_stem: str) -> str:
+    """Remove top-level describe blocks whose name does not belong in this file.
+
+    A block belongs if its name starts with the file stem (case-insensitive).
+    Only top-level describe calls (at column 0) are considered; nested describes
+    (which are indented) are ignored by the regex anchor.
+
+    Applied to every frontend .test.tsx/.test.ts file at three points:
+      1. On pipeline start — clean contamination from previous runs.
+      2. After Claude writes new test files — before they are committed.
+      3. After each correction — before the correction is committed.
+    """
+    norm_stem = file_stem.lower()
+    changed = True
+    result = content
+    while changed:
+        changed = False
+        for m in _TOP_LEVEL_DESCRIBE_RE.finditer(result):
+            block_name = m.group(1).lower()
+            if not block_name.startswith(norm_stem):
+                start = m.start()
+                end = _find_describe_block_end(result, start)
+                # Remove the block and any leading blank line before it
+                prefix = result[:start].rstrip("\n")
+                suffix = result[end:].lstrip("\n")
+                result = prefix + ("\n\n" if prefix else "") + suffix
+                changed = True
+                print(
+                    f"{_LOG_PREFIX} removed foreign describe block "
+                    f"'{m.group(1)}' from {file_stem} test file"
+                )
+                break  # restart scan on modified string
+    return result.strip() + "\n"
+
+
+def _clean_frontend_test_isolation(repo_root: Path) -> list[str]:
+    """Scan all frontend .test.tsx/.test.ts files and strip foreign describe blocks.
+
+    Runs at pipeline start so contamination from previous correction loops is
+    removed before new test generation begins.  Returns repo-relative paths of
+    every file that was modified.
+    """
+    test_dir = repo_root / _FRONTEND_TEST_DIR
+    if not test_dir.exists():
+        return []
+    cleaned: list[str] = []
+    for test_file in sorted(test_dir.glob("*.test.tsx")) + sorted(test_dir.glob("*.test.ts")):
+        file_stem = test_file.stem.replace(".test", "")
+        try:
+            original = test_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        fixed = _strip_foreign_describe_blocks(original, file_stem)
+        if fixed.strip() != original.strip():
+            rel = str(test_file.relative_to(repo_root))
+            git_utils.write_file(rel, fixed)
+            cleaned.append(rel)
+    return cleaned
 
 
 def _is_plausible_code(content: str, file_path: str) -> bool:
@@ -946,6 +1061,9 @@ def _validate_and_write_tests(file_map: dict[str, str]) -> list[str]:
         if not any(path.startswith(root) for root in _VALID_TEST_ROOTS):
             print(f"{_LOG_PREFIX} warning: rejected test path outside test directories: {path!r}")
             continue
+        if path.startswith(_FRONTEND_TEST_DIR) and (path.endswith(".test.tsx") or path.endswith(".test.ts")):
+            file_stem = Path(path).stem.replace(".test", "")
+            content = _strip_foreign_describe_blocks(content, file_stem)
         git_utils.write_file(path, content)
         written.append(path)
     return written
