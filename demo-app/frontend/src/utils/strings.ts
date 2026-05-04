@@ -98,3 +98,6 @@ export const LABEL_STATS_OVERDUE = 'Overdue';
 
 export const LABEL_CHEVRON_COLLAPSE_ARIA = 'Collapse completed tasks';
 export const LABEL_CHEVRON_EXPAND_ARIA = 'Expand completed tasks';
+
+export const LABEL_UPCOMING_CHEVRON_COLLAPSE_ARIA = 'Collapse upcoming tasks';
+export const LABEL_UPCOMING_CHEVRON_EXPAND_ARIA = 'Expand upcoming tasks';
