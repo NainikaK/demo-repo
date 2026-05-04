@@ -60,7 +60,8 @@ describe('TaskStatsDashboard', () => {
     const tasks: Task[] = [makeTask({ id: '1' })];
     const { rerender } = render(<TaskStatsDashboard tasks={tasks} />);
 
-    expect(screen.getByText('1')).toBeInTheDocument();
+    // total=1, pending=1 both show '1' — use getAllByText
+    expect(screen.getAllByText('1')).toHaveLength(2);
 
     mocks.useTaskStats.mockReturnValue({
       total: 2,
