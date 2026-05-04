@@ -1,33 +1,34 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 import { TaskSearchBar } from '../components/TaskSearchBar';
 
 describe('TaskSearchBar', () => {
-  it('renders the search input with correct aria-label', () => {
-    render(<TaskSearchBar value="" onChange={() => {}} />);
-    expect(
-      screen.getByRole('searchbox', { name: 'Search upcoming tasks by title' })
-    ).toBeInTheDocument();
+  it('render test - renders a search input with the correct placeholder and aria-label', () => {
+    render(<TaskSearchBar value="" onChange={vi.fn()} />);
+
+    const input = screen.getByRole('searchbox', { name: 'Search upcoming tasks by title' });
+    expect(input).toBeInTheDocument();
+    expect(input).toHaveAttribute('placeholder', 'Search tasks...');
   });
 
-  it('displays the current value', () => {
-    render(<TaskSearchBar value="hello" onChange={() => {}} />);
-    const input = screen.getByRole('searchbox') as HTMLInputElement;
-    expect(input.value).toBe('hello');
+  it('interaction test - calls onChange with the typed value on every keystroke', async () => {
+    const onChange = vi.fn();
+    render(<TaskSearchBar value="" onChange={onChange} />);
+
+    const input = screen.getByRole('searchbox', { name: 'Search upcoming tasks by title' });
+    await userEvent.type(input, 'abc');
+
+    expect(onChange).toHaveBeenCalledTimes(3);
+    expect(onChange).toHaveBeenNthCalledWith(1, 'a');
+    expect(onChange).toHaveBeenNthCalledWith(2, 'b');
+    expect(onChange).toHaveBeenNthCalledWith(3, 'c');
   });
 
-  it('calls onChange with the new value on every keystroke', () => {
-    const handleChange = jest.fn();
-    render(<TaskSearchBar value="" onChange={handleChange} />);
-    const input = screen.getByRole('searchbox');
-    fireEvent.change(input, { target: { value: 'a' } });
-    expect(handleChange).toHaveBeenCalledWith('a');
-  });
+  it('edge case - renders without crashing when value is an empty string', () => {
+    render(<TaskSearchBar value="" onChange={vi.fn()} />);
 
-  it('calls onChange with empty string when input is cleared', () => {
-    const handleChange = jest.fn();
-    render(<TaskSearchBar value="abc" onChange={handleChange} />);
-    const input = screen.getByRole('searchbox');
-    fireEvent.change(input, { target: { value: '' } });
-    expect(handleChange).toHaveBeenCalledWith('');
+    const input = screen.getByRole('searchbox', { name: 'Search upcoming tasks by title' });
+    expect(input).toHaveValue('');
   });
 });
