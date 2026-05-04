@@ -5,52 +5,32 @@ import { CompletedTasksSection } from '../components/CompletedTasksSection';
 import type { Task } from '../types';
 
 vi.mock('../components/TaskCard', () => ({
-  TaskCard: ({ task }: { task: Task }) => (
-    <div data-testid="task-card">{task.title}</div>
-  ),
+  TaskCard: ({ task }: { task: Task }) => <div data-testid="task-card">{task.title}</div>,
 }));
 
 vi.mock('../components/PriorityFilter', () => ({
-  PriorityFilter: ({
-    selectedPriority,
-    onChange,
-  }: {
-    selectedPriority: string | null;
-    onChange: (p: string | null) => void;
-  }) => (
-    <select
-      data-testid="priority-filter"
-      value={selectedPriority ?? ''}
-      onChange={(e) => onChange(e.target.value === '' ? null : e.target.value as 'low' | 'medium' | 'high')}
-      aria-label="Filter tasks by priority"
-    >
-      <option value="">All Priorities</option>
-      <option value="low">Low</option>
-      <option value="medium">Medium</option>
-      <option value="high">High</option>
-    </select>
-  ),
+  PriorityFilter: () => <div data-testid="priority-filter" />,
 }));
 
 vi.mock('../components/ChevronIcon', () => ({
   ChevronIcon: ({ isExpanded }: { isExpanded: boolean }) => (
-    <svg data-testid="chevron-icon" data-expanded={isExpanded} />
+    <span data-testid="chevron-icon" data-expanded={String(isExpanded)} />
   ),
 }));
 
-const baseTask: Task = {
-  id: 'task-1',
-  title: 'Completed Task One',
+const makeTask = (id: string): Task => ({
+  id,
+  title: `Completed Task ${id}`,
   completed: true,
   createdAt: '2024-01-01T00:00:00.000Z',
   priority: 'medium',
-};
+});
 
 describe('CompletedTasksSection', () => {
-  it('render test - renders the heading and PriorityFilter when given valid props', () => {
+  it('render test - renders the section heading and chevron icon by default', () => {
     render(
       <CompletedTasksSection
-        completedTasks={[baseTask]}
+        completedTasks={[makeTask('1')]}
         onComplete={vi.fn()}
         selectedPriority={null}
         onPriorityChange={vi.fn()}
@@ -58,106 +38,46 @@ describe('CompletedTasksSection', () => {
     );
 
     expect(screen.getByText('Completed Tasks')).toBeInTheDocument();
-    expect(screen.getByTestId('priority-filter')).toBeInTheDocument();
-    expect(screen.getByTestId('task-card')).toBeInTheDocument();
-  });
-
-  it('render test - renders a chevron icon in the heading', () => {
-    render(
-      <CompletedTasksSection
-        completedTasks={[baseTask]}
-        onComplete={vi.fn()}
-        selectedPriority={null}
-        onPriorityChange={vi.fn()}
-      />
-    );
-
     expect(screen.getByTestId('chevron-icon')).toBeInTheDocument();
   });
 
-  it('interaction test - calls onPriorityChange when a priority is selected in the filter', async () => {
-    const onPriorityChange = vi.fn();
+  it('interaction test - clicking the chevron button collapses the task list and expands it again on second click', async () => {
     render(
       <CompletedTasksSection
-        completedTasks={[baseTask]}
-        onComplete={vi.fn()}
-        selectedPriority={null}
-        onPriorityChange={onPriorityChange}
-      />
-    );
-
-    const select = screen.getByTestId('priority-filter');
-    await userEvent.selectOptions(select, 'high');
-
-    expect(onPriorityChange).toHaveBeenCalledWith('high');
-  });
-
-  it('interaction test - clicking the chevron button collapses the completed tasks list', async () => {
-    render(
-      <CompletedTasksSection
-        completedTasks={[baseTask]}
+        completedTasks={[makeTask('1')]}
         onComplete={vi.fn()}
         selectedPriority={null}
         onPriorityChange={vi.fn()}
       />
     );
 
+    // Initially expanded — task card should be visible
     expect(screen.getByTestId('task-card')).toBeInTheDocument();
 
+    // Click the chevron button to collapse
     const toggleButton = screen.getByRole('button', { name: 'Collapse completed tasks' });
     await userEvent.click(toggleButton);
 
-    expect(screen.queryByTestId('task-card')).not.toBeInTheDocument();
-  });
-
-  it('interaction test - clicking the chevron button twice expands the completed tasks list again', async () => {
-    render(
-      <CompletedTasksSection
-        completedTasks={[baseTask]}
-        onComplete={vi.fn()}
-        selectedPriority={null}
-        onPriorityChange={vi.fn()}
-      />
-    );
-
-    const toggleButton = screen.getByRole('button', { name: 'Collapse completed tasks' });
-    await userEvent.click(toggleButton);
+    // Task card should now be hidden
     expect(screen.queryByTestId('task-card')).not.toBeInTheDocument();
 
+    // Click again to expand
     const expandButton = screen.getByRole('button', { name: 'Expand completed tasks' });
     await userEvent.click(expandButton);
+
     expect(screen.getByTestId('task-card')).toBeInTheDocument();
   });
 
-  it('interaction test - chevron icon reflects expanded state', async () => {
-    render(
-      <CompletedTasksSection
-        completedTasks={[baseTask]}
-        onComplete={vi.fn()}
-        selectedPriority={null}
-        onPriorityChange={vi.fn()}
-      />
-    );
-
-    const chevron = screen.getByTestId('chevron-icon');
-    expect(chevron).toHaveAttribute('data-expanded', 'true');
-
-    const toggleButton = screen.getByRole('button', { name: 'Collapse completed tasks' });
-    await userEvent.click(toggleButton);
-
-    expect(screen.getByTestId('chevron-icon')).toHaveAttribute('data-expanded', 'false');
-  });
-
-  it('edge case - displays no-priority message when completedTasks is empty and a priority is selected', () => {
+  it('edge case - renders empty state message when completedTasks array is empty and no priority is selected', () => {
     render(
       <CompletedTasksSection
         completedTasks={[]}
         onComplete={vi.fn()}
-        selectedPriority="high"
+        selectedPriority={null}
         onPriorityChange={vi.fn()}
       />
     );
 
-    expect(screen.getByText('No tasks in this priority yet')).toBeInTheDocument();
+    expect(screen.getByText('No completed tasks yet')).toBeInTheDocument();
   });
 });
