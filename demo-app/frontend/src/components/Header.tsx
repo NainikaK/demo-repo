@@ -7,6 +7,7 @@ import {
   LABEL_TOGGLE_TO_LIGHT,
 } from '../utils/strings';
 import { PaperIcon } from './PaperIcon';
+import { SparkleIcon } from './SparkleIcon';
 import { ThemeIcon } from './ThemeIcon';
 import { WeatherWidget } from './WeatherWidget';
 
@@ -21,7 +22,7 @@ export function Header() {
         {APP_TITLE}
       </h1>
       <div className="flex items-center gap-2">
-        <span aria-hidden="true" className="text-2xl leading-none">&#128512;</span>
+        <SparkleIcon className="w-[1.5rem] h-[1.5rem] pointer-events-none select-none cursor-default text-gray-700 dark:text-gray-200" />
         <WeatherWidget />
         <ThemeIcon isDark={isDark} />
         <button
