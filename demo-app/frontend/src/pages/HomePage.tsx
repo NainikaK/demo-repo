@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { TaskCard } from '../components/TaskCard';
 import { TaskForm } from '../components/TaskForm';
 import { LoadMoreButton } from '../components/LoadMoreButton';
@@ -8,6 +8,7 @@ import { CompletedTasksSection } from '../components/CompletedTasksSection';
 import { PriorityFilter } from '../components/PriorityFilter';
 import { CommentPanel } from '../components/CommentPanel';
 import { TaskSearchBar } from '../components/TaskSearchBar';
+import { TaskStatsDashboard } from '../components/TaskStatsDashboard';
 import { useUpcomingTasks } from '../hooks/useUpcomingTasks';
 import { useCompletedTasks } from '../hooks/useCompletedTasks';
 import { usePriorityFilter } from '../hooks/usePriorityFilter';
@@ -41,6 +42,7 @@ async function fetchCommentCount(taskId: string): Promise<number> {
 export function HomePage() {
   const {
     visibleTasks,
+    allTasks,
     hasMore,
     loading,
     error,
@@ -72,6 +74,8 @@ export function HomePage() {
     setSearchTerm,
     filteredTasks,
   } = useTaskSearch(priorityFilteredTasks);
+
+  const allStatTasks = useMemo(() => allTasks, [allTasks]);
 
   useEffect(() => {
     if (visibleTasks.length === 0) return;
@@ -140,6 +144,7 @@ export function HomePage() {
 
   return (
     <main className="max-w-2xl mx-auto px-6 py-8">
+      <TaskStatsDashboard tasks={allStatTasks} />
       <TaskForm onTaskCreated={handleTaskCreated} />
       <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
         {LABEL_TASKS_HEADING}

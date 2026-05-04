@@ -7,6 +7,7 @@ const LOAD_MORE_INCREMENT = 4;
 
 export interface UseUpcomingTasksResult {
   visibleTasks: Task[];
+  allTasks: Task[];
   hasMore: boolean;
   loading: boolean;
   error: string | null;
@@ -39,6 +40,7 @@ export function useUpcomingTasks(): UseUpcomingTasksResult {
 
   return {
     visibleTasks,
+    allTasks: tasks,
     hasMore,
     loading,
     error,
