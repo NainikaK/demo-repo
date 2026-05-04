@@ -95,3 +95,6 @@ export const LABEL_STATS_TOTAL = 'Total Tasks';
 export const LABEL_STATS_COMPLETED = 'Completed';
 export const LABEL_STATS_PENDING = 'Pending';
 export const LABEL_STATS_OVERDUE = 'Overdue';
+
+export const LABEL_CHEVRON_COLLAPSE_ARIA = 'Collapse completed tasks';
+export const LABEL_CHEVRON_EXPAND_ARIA = 'Expand completed tasks';

@@ -32,6 +32,12 @@ vi.mock('../components/PriorityFilter', () => ({
   ),
 }));
 
+vi.mock('../components/ChevronIcon', () => ({
+  ChevronIcon: ({ isExpanded }: { isExpanded: boolean }) => (
+    <svg data-testid="chevron-icon" data-expanded={isExpanded} />
+  ),
+}));
+
 const baseTask: Task = {
   id: 'task-1',
   title: 'Completed Task One',
@@ -56,6 +62,19 @@ describe('CompletedTasksSection', () => {
     expect(screen.getByTestId('task-card')).toBeInTheDocument();
   });
 
+  it('render test - renders a chevron icon in the heading', () => {
+    render(
+      <CompletedTasksSection
+        completedTasks={[baseTask]}
+        onComplete={vi.fn()}
+        selectedPriority={null}
+        onPriorityChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('chevron-icon')).toBeInTheDocument();
+  });
+
   it('interaction test - calls onPriorityChange when a priority is selected in the filter', async () => {
     const onPriorityChange = vi.fn();
     render(
@@ -71,6 +90,62 @@ describe('CompletedTasksSection', () => {
     await userEvent.selectOptions(select, 'high');
 
     expect(onPriorityChange).toHaveBeenCalledWith('high');
+  });
+
+  it('interaction test - clicking the chevron button collapses the completed tasks list', async () => {
+    render(
+      <CompletedTasksSection
+        completedTasks={[baseTask]}
+        onComplete={vi.fn()}
+        selectedPriority={null}
+        onPriorityChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('task-card')).toBeInTheDocument();
+
+    const toggleButton = screen.getByRole('button', { name: 'Collapse completed tasks' });
+    await userEvent.click(toggleButton);
+
+    expect(screen.queryByTestId('task-card')).not.toBeInTheDocument();
+  });
+
+  it('interaction test - clicking the chevron button twice expands the completed tasks list again', async () => {
+    render(
+      <CompletedTasksSection
+        completedTasks={[baseTask]}
+        onComplete={vi.fn()}
+        selectedPriority={null}
+        onPriorityChange={vi.fn()}
+      />
+    );
+
+    const toggleButton = screen.getByRole('button', { name: 'Collapse completed tasks' });
+    await userEvent.click(toggleButton);
+    expect(screen.queryByTestId('task-card')).not.toBeInTheDocument();
+
+    const expandButton = screen.getByRole('button', { name: 'Expand completed tasks' });
+    await userEvent.click(expandButton);
+    expect(screen.getByTestId('task-card')).toBeInTheDocument();
+  });
+
+  it('interaction test - chevron icon reflects expanded state', async () => {
+    render(
+      <CompletedTasksSection
+        completedTasks={[baseTask]}
+        onComplete={vi.fn()}
+        selectedPriority={null}
+        onPriorityChange={vi.fn()}
+      />
+    );
+
+    const chevron = screen.getByTestId('chevron-icon');
+    expect(chevron).toHaveAttribute('data-expanded', 'true');
+
+    const toggleButton = screen.getByRole('button', { name: 'Collapse completed tasks' });
+    await userEvent.click(toggleButton);
+
+    expect(screen.getByTestId('chevron-icon')).toHaveAttribute('data-expanded', 'false');
   });
 
   it('edge case - displays no-priority message when completedTasks is empty and a priority is selected', () => {
