@@ -24,6 +24,8 @@ import {
   LABEL_RETRY,
   LABEL_RETRY_ARIA,
   LABEL_TASKS_HEADING,
+  LABEL_UPCOMING_CHEVRON_COLLAPSE_ARIA,
+  LABEL_UPCOMING_CHEVRON_EXPAND_ARIA,
 } from '../utils/strings';
 
 const UPCOMING_TASKS_MAX_HEIGHT = 'max-h-[200px]';
@@ -66,6 +68,7 @@ export function HomePage() {
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [activeCommentTask, setActiveCommentTask] =
     useState<ActiveCommentTask | null>(null);
+  const [isUpcomingExpanded, setIsUpcomingExpanded] = useState<boolean>(true);
 
   const priorityFilteredTasks = filterTasks(visibleTasks);
 
@@ -116,6 +119,10 @@ export function HomePage() {
     }));
   }, []);
 
+  const handleUpcomingToggle = useCallback(() => {
+    setIsUpcomingExpanded((prev) => !prev);
+  }, []);
+
   if (loading) {
     return (
       <main className="flex items-center justify-center min-h-[60vh]">
@@ -149,6 +156,31 @@ export function HomePage() {
       <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
         {LABEL_TASKS_HEADING}
         <EyeIcon className="inline-block w-[1em] h-[1em]" />
+        <button
+          aria-label={
+            isUpcomingExpanded
+              ? LABEL_UPCOMING_CHEVRON_COLLAPSE_ARIA
+              : LABEL_UPCOMING_CHEVRON_EXPAND_ARIA
+          }
+          onClick={handleUpcomingToggle}
+          className="inline-flex items-center justify-center leading-none text-gray-800 dark:text-gray-200 bg-transparent border-0 p-0 cursor-pointer"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`w-[1em] h-[1em] transition-transform duration-200 ${
+              isUpcomingExpanded ? 'rotate-180' : 'rotate-0'
+            }`}
+            aria-hidden="true"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
       </h2>
       <div className="flex items-center gap-3 mb-4">
         <PriorityFilter
@@ -162,21 +194,23 @@ export function HomePage() {
           {LABEL_COMPLETE_ERROR}
         </p>
       )}
-      {filteredTasks.length === 0 ? (
-        <p className="text-gray-500 dark:text-gray-400">{LABEL_NO_TASKS}</p>
-      ) : (
-        <ul className={`flex flex-col gap-3 overflow-y-auto ${UPCOMING_TASKS_MAX_HEIGHT}`}>
-          {filteredTasks.map((task) => (
-            <li key={task.id}>
-              <TaskCard
-                task={task}
-                onComplete={completeTask}
-                commentCount={commentCounts[task.id] ?? 0}
-                onCommentClick={handleCommentClick}
-              />
-            </li>
-          ))}
-        </ul>
+      {isUpcomingExpanded && (
+        filteredTasks.length === 0 ? (
+          <p className="text-gray-500 dark:text-gray-400">{LABEL_NO_TASKS}</p>
+        ) : (
+          <ul className={`flex flex-col gap-3 overflow-y-auto ${UPCOMING_TASKS_MAX_HEIGHT}`}>
+            {filteredTasks.map((task) => (
+              <li key={task.id}>
+                <TaskCard
+                  task={task}
+                  onComplete={completeTask}
+                  commentCount={commentCounts[task.id] ?? 0}
+                  onCommentClick={handleCommentClick}
+                />
+              </li>
+            ))}
+          </ul>
+        )
       )}
       <LoadMoreButton onClick={loadMore} visible={hasMore} />
       <div className="mt-8">
