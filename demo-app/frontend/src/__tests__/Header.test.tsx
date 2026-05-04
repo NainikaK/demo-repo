@@ -40,7 +40,7 @@ describe('Header', () => {
   it('interaction test - clicking the theme toggle button calls toggleTheme', async () => {
     render(<Header />);
 
-    const toggleButton = screen.getByRole('button', { name: /toggle to dark/i });
+    const toggleButton = screen.getByRole('button', { name: 'Switch to dark mode' });
     await userEvent.click(toggleButton);
 
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
