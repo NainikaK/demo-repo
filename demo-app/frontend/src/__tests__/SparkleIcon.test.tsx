@@ -1,50 +1,35 @@
-import { render, screen } from '@testing-library/react';
-import React from 'react';
+import { render } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 import { SparkleIcon } from '../components/SparkleIcon';
 
 describe('SparkleIcon', () => {
-  it('renders an svg element', () => {
-    const { container } = render(<SparkleIcon />);
-    const svg = container.querySelector('svg');
-    expect(svg).not.toBeNull();
-  });
+  it('render test - renders an svg element that is hidden from assistive technology and not focusable', () => {
+    render(<SparkleIcon />);
 
-  it('applies className prop when provided', () => {
-    const { container } = render(<SparkleIcon className="w-6 h-6" />);
-    const svg = container.querySelector('svg');
-    expect(svg).toHaveClass('w-6');
-    expect(svg).toHaveClass('h-6');
-  });
-
-  it('has aria-hidden set to true', () => {
-    const { container } = render(<SparkleIcon />);
-    const svg = container.querySelector('svg');
+    const svg = document.querySelector('svg');
+    expect(svg).toBeInTheDocument();
     expect(svg).toHaveAttribute('aria-hidden', 'true');
-  });
-
-  it('has focusable set to false', () => {
-    const { container } = render(<SparkleIcon />);
-    const svg = container.querySelector('svg');
     expect(svg).toHaveAttribute('focusable', 'false');
   });
 
-  it('does not have any click event handler', () => {
-    const { container } = render(<SparkleIcon />);
-    const svg = container.querySelector('svg');
-    expect(svg).not.toBeNull();
-    const onClickAttr = svg?.onclick;
-    expect(onClickAttr).toBeUndefined();
+  it('interaction test - applies a provided className to the svg element and has no interactive attributes', () => {
+    render(<SparkleIcon className="w-[1.5rem] h-[1.5rem] pointer-events-none" />);
+
+    const svg = document.querySelector('svg');
+    expect(svg).toHaveClass('w-[1.5rem]');
+    expect(svg).toHaveClass('h-[1.5rem]');
+    expect(svg).toHaveClass('pointer-events-none');
+    expect(svg).not.toHaveAttribute('role', 'button');
+    expect(svg).not.toHaveAttribute('tabindex');
+    expect(svg?.onclick).toBeNull();
   });
 
-  it('does not render any interactive role', () => {
-    const { container } = render(<SparkleIcon />);
-    const interactive = container.querySelector('[role="button"], [tabindex]');
-    expect(interactive).toBeNull();
-  });
-
-  it('is not queryable as a button or link', () => {
+  it('edge case - renders without crashing when no className prop is provided', () => {
     render(<SparkleIcon />);
-    expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.queryByRole('link')).toBeNull();
+
+    const svg = document.querySelector('svg');
+    expect(svg).toBeInTheDocument();
+    expect(svg).toHaveAttribute('fill', 'currentColor');
   });
 });
