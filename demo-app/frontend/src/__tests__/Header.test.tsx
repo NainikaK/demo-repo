@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { Header } from '../components/Header';
 
 const mocks = vi.hoisted(() => ({
   toggleTheme: vi.fn(),
@@ -19,35 +20,39 @@ vi.mock('../components/ThemeIcon', () => ({
 }));
 
 vi.mock('../components/PaperIcon', () => ({
-  PaperIcon: ({ className }: { className?: string }) => (
-    <svg data-testid="paper-icon" className={className} aria-hidden="true" focusable="false" />
+  PaperIcon: () => <span data-testid="paper-icon" />,
+}));
+
+vi.mock('../components/SparkleIcon', () => ({
+  SparkleIcon: ({ className }: { className?: string }) => (
+    <svg data-testid="sparkle-icon" className={className} aria-hidden="true" focusable="false" />
   ),
 }));
 
-import { Header } from '../components/Header';
-
 describe('Header', () => {
-  it('render test - renders the app title and the paper icon beside it', () => {
+  it('render test - renders the SparkleIcon and not a SmileyIcon in the header', () => {
     render(<Header />);
 
-    expect(screen.getByText('Task Manager')).toBeInTheDocument();
-    expect(screen.getByTestId('paper-icon')).toBeInTheDocument();
+    const sparkleIcon = screen.getByTestId('sparkle-icon');
+    expect(sparkleIcon).toBeInTheDocument();
   });
 
-  it('interaction test - calls toggleTheme when the theme toggle button is clicked', async () => {
+  it('interaction test - clicking the theme toggle button calls toggleTheme', async () => {
     render(<Header />);
 
-    const toggleButton = screen.getByRole('button', { name: /switch to dark mode/i });
+    const toggleButton = screen.getByRole('button', { name: 'Switch to dark mode' });
     await userEvent.click(toggleButton);
 
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('edge case - the paper icon has pointer-events-none and select-none classes making it non-interactive', () => {
+  it('edge case - SparkleIcon in header has no onClick, onMouseEnter, or interactive attributes', () => {
     render(<Header />);
 
-    const paperIcon = screen.getByTestId('paper-icon');
-    expect(paperIcon).toHaveClass('pointer-events-none');
-    expect(paperIcon).toHaveClass('select-none');
+    const sparkleIcon = screen.getByTestId('sparkle-icon');
+    expect(sparkleIcon.onclick).toBeNull();
+    expect(sparkleIcon).not.toHaveAttribute('role', 'button');
+    expect(sparkleIcon).not.toHaveAttribute('tabindex');
+    expect(sparkleIcon).toHaveAttribute('aria-hidden', 'true');
   });
 });
