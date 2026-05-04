@@ -87,3 +87,6 @@ export const LABEL_TAB_ACTIVITY_ARIA = 'Show activity tab';
 export const LABEL_ACTIVITY_LOADING = 'Loading activity...';
 export const LABEL_ACTIVITY_FETCH_ERROR = 'Failed to load activity. Please try again.';
 export const LABEL_ACTIVITY_EMPTY = 'No activity recorded yet.';
+
+export const LABEL_TASK_SEARCH_PLACEHOLDER = 'Search tasks...';
+export const LABEL_TASK_SEARCH_ARIA = 'Search upcoming tasks by title';

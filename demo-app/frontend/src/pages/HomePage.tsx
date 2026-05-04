@@ -7,10 +7,12 @@ import { EyeIcon } from '../components/EyeIcon';
 import { CompletedTasksSection } from '../components/CompletedTasksSection';
 import { PriorityFilter } from '../components/PriorityFilter';
 import { CommentPanel } from '../components/CommentPanel';
+import { TaskSearchBar } from '../components/TaskSearchBar';
 import { useUpcomingTasks } from '../hooks/useUpcomingTasks';
 import { useCompletedTasks } from '../hooks/useCompletedTasks';
 import { usePriorityFilter } from '../hooks/usePriorityFilter';
 import { useCompletedTasksPriorityFilter } from '../hooks/useCompletedTasksPriorityFilter';
+import { useTaskSearch } from '../hooks/useTaskSearch';
 import type { Task, ActiveCommentTask } from '../types';
 import { COMMENTS_URL } from '../utils/constants';
 import {
@@ -63,7 +65,13 @@ export function HomePage() {
   const [activeCommentTask, setActiveCommentTask] =
     useState<ActiveCommentTask | null>(null);
 
-  const filteredTasks = filterTasks(visibleTasks);
+  const priorityFilteredTasks = filterTasks(visibleTasks);
+
+  const {
+    searchTerm,
+    setSearchTerm,
+    filteredTasks,
+  } = useTaskSearch(priorityFilteredTasks);
 
   useEffect(() => {
     if (visibleTasks.length === 0) return;
@@ -137,10 +145,13 @@ export function HomePage() {
         {LABEL_TASKS_HEADING}
         <EyeIcon className="inline-block w-[1em] h-[1em]" />
       </h2>
-      <PriorityFilter
-        selectedPriority={selectedPriority}
-        onChange={setSelectedPriority}
-      />
+      <div className="flex items-center gap-3 mb-4">
+        <PriorityFilter
+          selectedPriority={selectedPriority}
+          onChange={setSelectedPriority}
+        />
+        <TaskSearchBar value={searchTerm} onChange={setSearchTerm} />
+      </div>
       {completeError && (
         <p className="mb-4 text-sm text-red-600 dark:text-red-400">
           {LABEL_COMPLETE_ERROR}
