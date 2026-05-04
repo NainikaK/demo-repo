@@ -10,6 +10,7 @@ import { CommentPanel } from '../components/CommentPanel';
 import { useUpcomingTasks } from '../hooks/useUpcomingTasks';
 import { useCompletedTasks } from '../hooks/useCompletedTasks';
 import { usePriorityFilter } from '../hooks/usePriorityFilter';
+import { useCompletedTasksPriorityFilter } from '../hooks/useCompletedTasksPriorityFilter';
 import type { Task, ActiveCommentTask } from '../types';
 import { COMMENTS_URL } from '../utils/constants';
 import {
@@ -51,6 +52,12 @@ export function HomePage() {
   const { completedTasks } = useCompletedTasks();
 
   const { selectedPriority, setSelectedPriority, filterTasks } = usePriorityFilter();
+
+  const {
+    selectedPriority: completedSelectedPriority,
+    setSelectedPriority: setCompletedSelectedPriority,
+    filteredTasks: filteredCompletedTasks,
+  } = useCompletedTasksPriorityFilter(completedTasks);
 
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [activeCommentTask, setActiveCommentTask] =
@@ -158,8 +165,10 @@ export function HomePage() {
       <LoadMoreButton onClick={loadMore} visible={hasMore} />
       <div className="mt-8">
         <CompletedTasksSection
-          completedTasks={completedTasks}
+          completedTasks={filteredCompletedTasks}
           onComplete={completeTask}
+          selectedPriority={completedSelectedPriority}
+          onPriorityChange={setCompletedSelectedPriority}
         />
       </div>
       <div className="flex justify-center mt-6">
