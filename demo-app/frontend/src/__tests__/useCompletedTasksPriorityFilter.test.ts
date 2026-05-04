@@ -10,8 +10,10 @@ const makeTasks = (): Task[] => [
 ];
 
 describe('useCompletedTasksPriorityFilter', () => {
+  let getItemSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
-    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
+    getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => undefined);
     vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => undefined);
   });
@@ -42,12 +44,10 @@ describe('useCompletedTasksPriorityFilter', () => {
   });
 
   it('loading state - reads stored priority from localStorage on initialization and filters accordingly', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) => {
+    getItemSpy.mockImplementation((key: string) => {
       if (key === 'completedTasksPriorityFilter') return 'medium';
       return null;
     });
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => undefined);
-    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => undefined);
     const tasks = makeTasks();
     const { result } = renderHook(() => useCompletedTasksPriorityFilter(tasks));
 
