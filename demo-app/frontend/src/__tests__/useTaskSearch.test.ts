@@ -4,9 +4,9 @@ import { useTaskSearch } from '../hooks/useTaskSearch';
 import type { Task } from '../types';
 
 const makeTasks = (): Task[] => [
-  { id: '1', title: 'Buy groceries', completed: false, createdAt: '2024-01-01T00:00:00.000Z', priority: 'low' },
-  { id: '2', title: 'Write unit tests', completed: false, createdAt: '2024-01-02T00:00:00.000Z', priority: 'high' },
-  { id: '3', title: 'Review pull request', completed: false, createdAt: '2024-01-03T00:00:00.000Z', priority: 'medium' },
+  { id: '1', title: 'Fix login bug', completed: false, createdAt: '2024-01-01T00:00:00.000Z', priority: 'high' },
+  { id: '2', title: 'Write unit tests', completed: false, createdAt: '2024-01-02T00:00:00.000Z', priority: 'medium' },
+  { id: '3', title: 'Update documentation', completed: false, createdAt: '2024-01-03T00:00:00.000Z', priority: 'low' },
 ];
 
 describe('useTaskSearch', () => {
@@ -14,36 +14,31 @@ describe('useTaskSearch', () => {
     const tasks = makeTasks();
     const { result } = renderHook(() => useTaskSearch(tasks));
 
-    expect(result.current.filteredTasks).toHaveLength(3);
     expect(result.current.searchTerm).toBe('');
+    expect(result.current.filteredTasks).toHaveLength(3);
+    expect(result.current.filteredTasks).toEqual(tasks);
   });
 
-  it('error case - returns empty array when no tasks match the search term', () => {
+  it('error case - returns only tasks whose titles contain the search term (case-insensitive)', () => {
     const tasks = makeTasks();
     const { result } = renderHook(() => useTaskSearch(tasks));
 
     act(() => {
-      result.current.setSearchTerm('xyznotmatching');
-    });
-
-    expect(result.current.filteredTasks).toHaveLength(0);
-  });
-
-  it('loading state - filters tasks case-insensitively on every searchTerm change', () => {
-    const tasks = makeTasks();
-    const { result } = renderHook(() => useTaskSearch(tasks));
-
-    act(() => {
-      result.current.setSearchTerm('UNIT');
+      result.current.setSearchTerm('unit');
     });
 
     expect(result.current.filteredTasks).toHaveLength(1);
     expect(result.current.filteredTasks[0].id).toBe('2');
+  });
+
+  it('loading state - returns an empty array when no tasks match the search term', () => {
+    const tasks = makeTasks();
+    const { result } = renderHook(() => useTaskSearch(tasks));
 
     act(() => {
-      result.current.setSearchTerm('r');
+      result.current.setSearchTerm('zzznomatch');
     });
 
-    expect(result.current.filteredTasks).toHaveLength(2);
+    expect(result.current.filteredTasks).toHaveLength(0);
   });
 });
