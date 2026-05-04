@@ -203,6 +203,11 @@ Common issues to check first:
   describe() block, and its name must start with the file stem. \
   For example, Header.test.tsx must have exactly one top-level describe('Header', ...) block. \
   Never add a second top-level describe() for a different component inside the same file.
+- Verify filter/search counts against your own test data: before writing toHaveLength(N) \
+  after a filter or search operation, trace the filter against every item in your makeTasks() \
+  fixture and count the REAL matches. If 3 out of 3 titles contain the letter 'r', \
+  assert toHaveLength(3), not toHaveLength(2). A wrong count assertion is a test failure \
+  that cannot be fixed without knowing your intent — get it right the first time.
 - Unstable mock function references causing useEffect re-firing: if a vi.mock factory \
   creates vi.fn() inline like `useX: () => ({ fetchData: vi.fn() })`, each call to useX() \
   returns a NEW vi.fn() reference. When a component's useEffect depends on that function \
@@ -289,10 +294,19 @@ def _map_frontend_failures_to_files(
     test_dir: Path,
     repo_root: Path,
 ) -> dict[str, list[TestCase]]:
-    """Map failing frontend cases to test files via substring search, with describe-name fallback.
+    """Map failing frontend cases to test files.
 
-    Handles vitest's ``fullName`` format: " DescribeName TestName" (space-separated,
-    optional leading space) — NOT the Jest " > " format.
+    Handles vitest's ``fullName`` format: "DescribeName it-name text" (space-separated)
+    — NOT the Jest " > " format.
+
+    Primary: describe-block name → <DescribeName>.test.tsx / .test.ts.
+    The describe name directly identifies the file, so this is the most reliable
+    mapping and eliminates false-positive matches on common words in other files.
+
+    Fallback: search the FULL it-name (everything after the describe name) as a
+    literal substring across all test files.  Using the complete it-name, rather
+    than just its last word, prevents single common words ("change", "null", etc.)
+    that appear in comments or unrelated tests from triggering a wrong match.
     """
     test_files: dict[str, str] = {}
     for f in sorted(test_dir.rglob("*")):
@@ -305,27 +319,28 @@ def _map_frontend_failures_to_files(
 
     file_to_cases: dict[str, list[TestCase]] = {}
     for case in failed:
-        # Vitest fullName: " DescribeName TestName" — strip and split on first space
+        # Vitest fullName: "DescribeName it-name text" — first word is the describe name
         stripped = case.name.strip()
         if " " in stripped:
             describe_name = stripped.split(" ", 1)[0]
-            it_name = stripped.rsplit(" ", 1)[1]
+            it_name = stripped.split(" ", 1)[1]   # full it-name, not just last word
         else:
             describe_name = stripped
             it_name = stripped
 
         matched = False
-        # Primary: look for the test name as a literal substring (it appears inside it('...'))
-        for rel, content in test_files.items():
-            if it_name and it_name in content:
+        # Primary: describe-name → <DescribeName>.test.tsx or .test.ts
+        for ext in (".test.tsx", ".test.ts"):
+            rel = str((test_dir / f"{describe_name}{ext}").relative_to(repo_root))
+            if rel in test_files:
                 file_to_cases.setdefault(rel, []).append(case)
                 matched = True
                 break
+
         if not matched:
-            # Fallback: map describe block name to "<DescribeName>.test.tsx"
-            for ext in (".test.tsx", ".test.ts"):
-                rel = str((test_dir / f"{describe_name}{ext}").relative_to(repo_root))
-                if rel in test_files:
+            # Fallback: full it-name substring search across all test files
+            for rel, content in test_files.items():
+                if it_name and it_name in content:
                     file_to_cases.setdefault(rel, []).append(case)
                     break
     return file_to_cases
