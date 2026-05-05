@@ -1,66 +1,59 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 import { AddTasksSection } from '../components/AddTasksSection';
-import {
-  LABEL_ADD_TASKS_SECTION_HEADING,
-  LABEL_ADD_TASKS_CHEVRON_COLLAPSE_ARIA,
-  LABEL_ADD_TASKS_CHEVRON_EXPAND_ARIA,
-} from '../utils/strings';
 
-const LABEL_ADD_TASK = 'Add Task';
-
-const mockOnTaskCreated = jest.fn();
+vi.mock('../components/TaskForm', () => ({
+  TaskForm: () => <div data-testid="task-form" />,
+}));
 
 describe('AddTasksSection', () => {
-  beforeEach(() => {
-    mockOnTaskCreated.mockClear();
-  });
+  it('render test - renders the section heading and chevron button in the expanded state by default', () => {
+    render(<AddTasksSection onTaskCreated={vi.fn()} />);
 
-  it('renders the section heading', () => {
-    render(<AddTasksSection onTaskCreated={mockOnTaskCreated} />);
-    expect(screen.getByText(LABEL_ADD_TASKS_SECTION_HEADING)).toBeInTheDocument();
-  });
-
-  it('renders the chevron button with collapse aria-label when expanded', () => {
-    render(<AddTasksSection onTaskCreated={mockOnTaskCreated} />);
+    expect(screen.getByText('Add tasks')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: LABEL_ADD_TASKS_CHEVRON_COLLAPSE_ARIA })
+      screen.getByRole('button', { name: 'Collapse add tasks section' })
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('task-form')).toBeInTheDocument();
+  });
+
+  it('interaction test - clicking the chevron button collapses the section and clicking again expands it', async () => {
+    render(<AddTasksSection onTaskCreated={vi.fn()} />);
+
+    // Initially expanded — TaskForm should be visible
+    expect(screen.getByTestId('task-form')).toBeInTheDocument();
+
+    // Collapse
+    const collapseButton = screen.getByRole('button', { name: 'Collapse add tasks section' });
+    await userEvent.click(collapseButton);
+
+    expect(screen.queryByTestId('task-form')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Expand add tasks section' })
+    ).toBeInTheDocument();
+
+    // Expand again
+    const expandButton = screen.getByRole('button', { name: 'Expand add tasks section' });
+    await userEvent.click(expandButton);
+
+    expect(screen.getByTestId('task-form')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Collapse add tasks section' })
     ).toBeInTheDocument();
   });
 
-  it('is expanded by default and shows child elements', () => {
-    render(<AddTasksSection onTaskCreated={mockOnTaskCreated} />);
-    expect(screen.getByRole('button', { name: /add new task/i })).toBeInTheDocument();
-  });
+  it('edge case - clicking the title text does not collapse the section', async () => {
+    render(<AddTasksSection onTaskCreated={vi.fn()} />);
 
-  it('collapses and hides child elements when chevron is clicked', () => {
-    render(<AddTasksSection onTaskCreated={mockOnTaskCreated} />);
-    const chevron = screen.getByRole('button', { name: LABEL_ADD_TASKS_CHEVRON_COLLAPSE_ARIA });
-    fireEvent.click(chevron);
-    expect(screen.queryByText(LABEL_ADD_TASK)).not.toBeInTheDocument();
-  });
+    // The title text is a <span> inside an <h2>, not a button
+    const titleSpan = screen.getByText('Add tasks');
+    await userEvent.click(titleSpan);
 
-  it('shows expand aria-label on chevron when collapsed', () => {
-    render(<AddTasksSection onTaskCreated={mockOnTaskCreated} />);
-    const chevron = screen.getByRole('button', { name: LABEL_ADD_TASKS_CHEVRON_COLLAPSE_ARIA });
-    fireEvent.click(chevron);
+    // Section should still be expanded after clicking the title
+    expect(screen.getByTestId('task-form')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: LABEL_ADD_TASKS_CHEVRON_EXPAND_ARIA })
+      screen.getByRole('button', { name: 'Collapse add tasks section' })
     ).toBeInTheDocument();
-  });
-
-  it('re-expands and shows child elements when chevron is clicked again', () => {
-    render(<AddTasksSection onTaskCreated={mockOnTaskCreated} />);
-    const chevron = screen.getByRole('button', { name: LABEL_ADD_TASKS_CHEVRON_COLLAPSE_ARIA });
-    fireEvent.click(chevron);
-    const expandChevron = screen.getByRole('button', { name: LABEL_ADD_TASKS_CHEVRON_EXPAND_ARIA });
-    fireEvent.click(expandChevron);
-    expect(screen.getByRole('button', { name: /add new task/i })).toBeInTheDocument();
-  });
-
-  it('clicking the title text does not toggle the section', () => {
-    render(<AddTasksSection onTaskCreated={mockOnTaskCreated} />);
-    const title = screen.getByText(LABEL_ADD_TASKS_SECTION_HEADING);
-    fireEvent.click(title);
-    expect(screen.getByRole('button', { name: /add new task/i })).toBeInTheDocument();
   });
 });
