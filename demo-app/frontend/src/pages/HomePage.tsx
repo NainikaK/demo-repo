@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { TaskCard } from '../components/TaskCard';
-import { TaskForm } from '../components/TaskForm';
+import { AddTasksSection } from '../components/AddTasksSection';
 import { LoadMoreButton } from '../components/LoadMoreButton';
 import { SmileyIcon } from '../components/SmileyIcon';
 import { EyeIcon } from '../components/EyeIcon';
@@ -100,9 +100,9 @@ export function HomePage() {
     loadCounts();
   }, [visibleTasks]);
 
-  const handleTaskCreated = (task: Task) => {
+  const handleTaskCreated = useCallback((task: Task) => {
     addTask(task);
-  };
+  }, [addTask]);
 
   const handleCommentClick = useCallback((task: Task) => {
     setActiveCommentTask({ id: task.id, title: task.title });
@@ -152,7 +152,7 @@ export function HomePage() {
   return (
     <main className="max-w-2xl mx-auto px-6 py-8">
       <TaskStatsDashboard tasks={allStatTasks} />
-      <TaskForm onTaskCreated={handleTaskCreated} />
+      <AddTasksSection onTaskCreated={handleTaskCreated} />
       <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
         {LABEL_TASKS_HEADING}
         <EyeIcon className="inline-block w-[1em] h-[1em]" />

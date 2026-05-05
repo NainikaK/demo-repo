@@ -101,3 +101,7 @@ export const LABEL_CHEVRON_EXPAND_ARIA = 'Expand completed tasks';
 
 export const LABEL_UPCOMING_CHEVRON_COLLAPSE_ARIA = 'Collapse upcoming tasks';
 export const LABEL_UPCOMING_CHEVRON_EXPAND_ARIA = 'Expand upcoming tasks';
+
+export const LABEL_ADD_TASKS_SECTION_HEADING = 'Add tasks';
+export const LABEL_ADD_TASKS_CHEVRON_COLLAPSE_ARIA = 'Collapse add tasks section';
+export const LABEL_ADD_TASKS_CHEVRON_EXPAND_ARIA = 'Expand add tasks section';
