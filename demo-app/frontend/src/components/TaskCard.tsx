@@ -7,6 +7,7 @@ import {
   LABEL_COMPLETED,
   LABEL_MARK_COMPLETE,
   LABEL_MARK_COMPLETE_ARIA,
+  LABEL_CHECK_TICK_ICON_ARIA,
 } from '../utils/strings';
 
 interface TaskCardProps {
@@ -53,6 +54,23 @@ export function TaskCard({
           >
             {task.title}
           </h2>
+          {task.completed && (
+            <svg
+              aria-label={LABEL_CHECK_TICK_ICON_ARIA}
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-[1em] h-[1em] text-gray-400 dark:text-gray-500 pointer-events-none shrink-0"
+              aria-hidden={false}
+              focusable="false"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {task.assignedTo && <AssigneeAvatar name={task.assignedTo} />}
