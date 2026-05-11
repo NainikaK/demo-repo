@@ -9,11 +9,13 @@ import { PriorityFilter } from '../components/PriorityFilter';
 import { CommentPanel } from '../components/CommentPanel';
 import { TaskSearchBar } from '../components/TaskSearchBar';
 import { TaskStatsDashboard } from '../components/TaskStatsDashboard';
+import { SortButton } from '../components/SortButton';
 import { useUpcomingTasks } from '../hooks/useUpcomingTasks';
 import { useCompletedTasks } from '../hooks/useCompletedTasks';
 import { usePriorityFilter } from '../hooks/usePriorityFilter';
 import { useCompletedTasksPriorityFilter } from '../hooks/useCompletedTasksPriorityFilter';
 import { useTaskSearch } from '../hooks/useTaskSearch';
+import { useTaskSort } from '../hooks/useTaskSort';
 import type { Task, ActiveCommentTask } from '../types';
 import { COMMENTS_URL } from '../utils/constants';
 import {
@@ -77,6 +79,8 @@ export function HomePage() {
     setSearchTerm,
     filteredTasks,
   } = useTaskSearch(priorityFilteredTasks);
+
+  const { sortDirection, toggleSortDirection, sortedTasks } = useTaskSort(filteredTasks);
 
   const allStatTasks = useMemo(() => allTasks, [allTasks]);
 
@@ -156,6 +160,7 @@ export function HomePage() {
       <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
         {LABEL_TASKS_HEADING}
         <EyeIcon className="inline-block w-[1em] h-[1em]" />
+        <SortButton sortDirection={sortDirection} onClick={toggleSortDirection} />
         <button
           aria-label={
             isUpcomingExpanded
@@ -195,11 +200,11 @@ export function HomePage() {
         </p>
       )}
       {isUpcomingExpanded && (
-        filteredTasks.length === 0 ? (
+        sortedTasks.length === 0 ? (
           <p className="text-gray-500 dark:text-gray-400">{LABEL_NO_TASKS}</p>
         ) : (
           <ul className={`flex flex-col gap-3 overflow-y-auto ${UPCOMING_TASKS_MAX_HEIGHT}`}>
-            {filteredTasks.map((task) => (
+            {sortedTasks.map((task) => (
               <li key={task.id}>
                 <TaskCard
                   task={task}
