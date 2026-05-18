@@ -108,3 +108,6 @@ export const LABEL_ADD_TASKS_CHEVRON_EXPAND_ARIA = 'Expand add tasks section';
 
 export const LABEL_SORT_ASCENDING_ARIA = 'Sort tasks by due date ascending';
 export const LABEL_SORT_DESCENDING_ARIA = 'Sort tasks by due date descending';
+
+export const LABEL_TASK_ADDED_TOAST = 'Task added successfully';
+export const LABEL_TASK_ADDED_TOAST_ICON_ARIA = 'Green tick indicating success';
