@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
 import { TaskForm } from './TaskForm';
+import { TaskAddedToast } from './TaskAddedToast';
+import { useTaskAddedToast } from '../hooks/useTaskAddedToast';
 import type { Task } from '../types';
 import {
   LABEL_ADD_TASKS_SECTION_HEADING,
@@ -13,10 +15,19 @@ interface AddTasksSectionProps {
 
 export function AddTasksSection({ onTaskCreated }: AddTasksSectionProps) {
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  const { visible, fading, triggerToast } = useTaskAddedToast();
 
   const handleToggle = useCallback(() => {
     setIsExpanded((prev) => !prev);
   }, []);
+
+  const handleTaskCreated = useCallback(
+    (task: Task) => {
+      onTaskCreated(task);
+      triggerToast();
+    },
+    [onTaskCreated, triggerToast],
+  );
 
   return (
     <section className="mb-6">
@@ -48,7 +59,10 @@ export function AddTasksSection({ onTaskCreated }: AddTasksSectionProps) {
           </svg>
         </button>
       </h2>
-      {isExpanded && <TaskForm onTaskCreated={onTaskCreated} />}
+      <div className="relative">
+        <TaskAddedToast visible={visible} fading={fading} />
+        {isExpanded && <TaskForm onTaskCreated={handleTaskCreated} />}
+      </div>
     </section>
   );
 }
