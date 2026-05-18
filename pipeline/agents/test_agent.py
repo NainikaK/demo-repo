@@ -1135,6 +1135,7 @@ def _run_frontend_tests() -> tuple[list[TestCase], float, dict[str, float]]:
             capture_output=True,
             text=True,
             timeout=_TEST_RUNNER_TIMEOUT,
+            shell=True,
         )
         cases = _parse_vitest_output(result.stdout or result.stderr)
         cov_pct, cov_files = _parse_vitest_coverage(frontend_dir)
@@ -1180,6 +1181,7 @@ def _run_backend_tests(backend_summary: ChangeSummary) -> tuple[list[TestCase], 
             capture_output=True,
             text=True,
             timeout=_TEST_RUNNER_TIMEOUT,
+            shell=True,
         )
         if not results_file.exists():
             # Build or runtime failure — surface stderr as a failed test case
