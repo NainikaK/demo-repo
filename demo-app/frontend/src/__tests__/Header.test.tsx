@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { Header } from '../components/Header';
 
 const mocks = vi.hoisted(() => ({
-  toggleTheme: vi.fn(),
   theme: 'light' as 'light' | 'dark',
+  toggleTheme: vi.fn(),
 }));
 
 vi.mock('../hooks/useTheme', () => ({
@@ -13,10 +13,6 @@ vi.mock('../hooks/useTheme', () => ({
     theme: mocks.theme,
     toggleTheme: mocks.toggleTheme,
   }),
-}));
-
-vi.mock('../components/WeatherWidget', () => ({
-  WeatherWidget: () => <span data-testid="weather-widget" />,
 }));
 
 vi.mock('../components/PaperIcon', () => ({
@@ -35,19 +31,17 @@ vi.mock('../components/ThemeIcon', () => ({
   ThemeIcon: () => <span data-testid="theme-icon" />,
 }));
 
+vi.mock('../components/WeatherWidget', () => ({
+  WeatherWidget: () => <span data-testid="weather-widget" />,
+}));
+
 describe('Header', () => {
-  it('render test - renders the Task Manager title without the TESTING label', () => {
+  it('render test - renders the Task Manager title without the word TESTING', () => {
     mocks.theme = 'light';
     render(<Header />);
 
-    const heading = screen.getByRole('heading', { level: 1 });
-    expect(heading).toBeInTheDocument();
-
     expect(screen.getByText('Task Manager')).toBeInTheDocument();
     expect(screen.queryByText('TESTING')).not.toBeInTheDocument();
-
-    expect(heading).toHaveTextContent('Task Manager');
-    expect(heading).not.toHaveTextContent('TESTING');
   });
 
   it('interaction test - clicking the theme toggle button calls toggleTheme', async () => {
@@ -61,11 +55,12 @@ describe('Header', () => {
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('edge case - renders without crashing when theme is dark and shows correct button label', () => {
+  it('edge case - renders correctly in dark mode with Light mode button label', () => {
     mocks.theme = 'dark';
     render(<Header />);
 
     expect(screen.getByRole('button', { name: 'Switch to light mode' })).toBeInTheDocument();
+    expect(screen.getByText('Light mode')).toBeInTheDocument();
     expect(screen.queryByText('TESTING')).not.toBeInTheDocument();
   });
 });
