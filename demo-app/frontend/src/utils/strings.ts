@@ -111,5 +111,3 @@ export const LABEL_SORT_DESCENDING_ARIA = 'Sort tasks by due date descending';
 
 export const LABEL_TASK_ADDED_TOAST = 'Task added successfully';
 export const LABEL_TASK_ADDED_TOAST_ICON_ARIA = 'Green tick indicating success';
-
-export const LABEL_HEADER_TESTING = 'TESTING';

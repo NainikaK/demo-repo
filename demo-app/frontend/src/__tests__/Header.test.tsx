@@ -36,7 +36,7 @@ vi.mock('../components/ThemeIcon', () => ({
 }));
 
 describe('Header', () => {
-  it('render test - renders the TESTING label to the right of the Task Manager title', () => {
+  it('render test - renders the Task Manager title without the TESTING label', () => {
     mocks.theme = 'light';
     render(<Header />);
 
@@ -44,11 +44,10 @@ describe('Header', () => {
     expect(heading).toBeInTheDocument();
 
     expect(screen.getByText('Task Manager')).toBeInTheDocument();
-    expect(screen.getByText('TESTING')).toBeInTheDocument();
+    expect(screen.queryByText('TESTING')).not.toBeInTheDocument();
 
-    // Verify TESTING is inside the h1 (to the right of the title)
     expect(heading).toHaveTextContent('Task Manager');
-    expect(heading).toHaveTextContent('TESTING');
+    expect(heading).not.toHaveTextContent('TESTING');
   });
 
   it('interaction test - clicking the theme toggle button calls toggleTheme', async () => {
@@ -67,6 +66,6 @@ describe('Header', () => {
     render(<Header />);
 
     expect(screen.getByRole('button', { name: 'Switch to light mode' })).toBeInTheDocument();
-    expect(screen.getByText('TESTING')).toBeInTheDocument();
+    expect(screen.queryByText('TESTING')).not.toBeInTheDocument();
   });
 });
