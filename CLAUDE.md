@@ -181,6 +181,38 @@ or tester is in the loop.
 
 ---
 
+## Project Phases
+
+| Phase | Description | Status |
+|---|---|---|
+| 1 | Core pipeline — 8-agent orchestration from ADO work item to merged PR | Complete |
+| 2 | Teams integration — Copilot Studio bot + Power Automate flow to create ADO work items from Teams | **Complete and Tested** |
+| 3 | Teams feedback loop — ADO service hooks + notify flows relay pipeline events to Teams in real time; Check Status bot topic | In Progress |
+
+**Phase 2: Teams Integration**
+
+Architecture: **Config-driven** — all environment-specific values are placeholders.
+
+- **Platform:** Copilot Studio (SDLC Bot environment) + Power Automate (SDLC Bot environment)
+- **Bot name:** `SDLC Pipeline Bot`
+- **Flow name:** `SDLC - Create ADO Work Item`
+- **Teams install:** personal install for `{TEAMS_USER_EMAIL}`
+- **Environment variables:** `{ADO_ORG}`, `{ADO_PROJECT}`, `{ADO_ASSIGNEE_EMAIL}`, `{ADO_TRIGGER_TAG}`, `{ADO_PAT}`
+
+**Workflow:**
+1. User submits plain-English requirement via Teams chat to `SDLC Pipeline Bot`
+2. Bot collects: title, description, work item type (Feature or User Story)
+3. Bot confirms details with user
+4. Bot calls `SDLC - Create ADO Work Item` Power Automate flow
+5. Flow creates ADO work item tagged with `{ADO_TRIGGER_TAG}` in `{ADO_PROJECT}`
+6. Pipeline orchestrator detects the work item and triggers 8-agent pipeline
+
+**Tested end-to-end:** Yes, Phase 2 is complete and ready for deployment.
+
+**Setup:** See [`teams/SETUP.md`](teams/SETUP.md) and [`teams/README.md`](teams/README.md) for full deployment instructions and build guides.
+
+---
+
 ## References
 
 | What you need | Where to look |
@@ -193,6 +225,15 @@ or tester is in the loop.
 | Anti-patterns (what never to do) | [`.claude/rules/anti-patterns.md`](.claude/rules/anti-patterns.md) |
 | Security documentation | [`security/`](security/) |
 | Output document templates | [`pipeline/templates/`](pipeline/templates/) |
+| Teams integration setup | [`teams/SETUP.md`](teams/SETUP.md) |
+| Teams integration overview | [`teams/README.md`](teams/README.md) |
+| Power Automate flow build guide | [`teams/build-guides/phase2-power-automate-flow.md`](teams/build-guides/phase2-power-automate-flow.md) |
+| Copilot Studio bot setup guide | [`teams/build-guides/phase2-copilot-studio-setup.md`](teams/build-guides/phase2-copilot-studio-setup.md) |
+| Adaptive card JSON structure | [`teams/build-guides/phase2-adaptive-card-json.md`](teams/build-guides/phase2-adaptive-card-json.md) |
+| Teams deployment guide | [`teams/build-guides/phase2-teams-deployment.md`](teams/build-guides/phase2-teams-deployment.md) |
+| Phase 3: ADO service hook configuration | [`teams/build-guides/phase3-ado-service-hooks.md`](teams/build-guides/phase3-ado-service-hooks.md) |
+| Phase 3: Notify flows (Flow A + B) | [`teams/build-guides/phase3-power-automate-notify-flows.md`](teams/build-guides/phase3-power-automate-notify-flows.md) |
+| Phase 3: Check Status topic + flow | [`teams/build-guides/phase3-activate-status-topic.md`](teams/build-guides/phase3-activate-status-topic.md) |
 
 ---
 
@@ -256,6 +297,17 @@ pipeline/
   mcp-servers/ado-mcp/         ← Azure DevOps MCP server
   execution_guides/            ← human-readable docs for each agent
   templates/                   ← audit criteria and test plan templates
+teams/
+  README.md                    ← Teams integration overview and architecture (Phase 2 + 3)
+  SETUP.md                     ← Deployment setup guide with placeholder reference (Phase 2 + 3)
+  build-guides/
+    phase2-power-automate-flow.md         ← Phase 2: ADO work item creation flow
+    phase2-copilot-studio-setup.md        ← Phase 2: Copilot Studio bot creation
+    phase2-adaptive-card-json.md          ← Phase 2: Confirmation card structure
+    phase2-teams-deployment.md            ← Phase 2: Teams deployment and testing
+    phase3-ado-service-hooks.md           ← Phase 3: 4 ADO service hook configurations
+    phase3-power-automate-notify-flows.md ← Phase 3: Flow A (state notifier) + Flow B (comment relay)
+    phase3-activate-status-topic.md       ← Phase 3: Check Status flow + Copilot Studio topic
 demo-app/
   frontend/                    ← React 18 app (Frontend Agent writes here only)
   backend/                     ← .NET 10 API (Backend Agent writes here only)
@@ -268,4 +320,4 @@ runs/                          ← pipeline run records (gitignored)
 ---
 
 *Full agent specifications: [`pipeline/execution_guides/`](pipeline/execution_guides/)*  
-*Last updated: 2026-05-04*
+*Last updated: 2026-05-26 — Phase 3 build guides added*
