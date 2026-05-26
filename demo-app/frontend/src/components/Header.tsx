@@ -2,6 +2,7 @@ import { useTheme } from '../hooks/useTheme';
 import {
   APP_TITLE,
   LABEL_DARK_MODE,
+  LABEL_HEADER_TESTING,
   LABEL_LIGHT_MODE,
   LABEL_TOGGLE_TO_DARK,
   LABEL_TOGGLE_TO_LIGHT,
@@ -21,6 +22,9 @@ export function Header() {
       <h1 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
         <PaperIcon className="w-[1em] h-[1em] pointer-events-none select-none" />
         {APP_TITLE}
+        <span className="text-xl font-semibold text-gray-900 dark:text-white">
+          {LABEL_HEADER_TESTING}
+        </span>
       </h1>
       <div className="flex items-center gap-2">
         <SmileyIcon className="w-[1.5rem] h-[1.5rem] pointer-events-none select-none cursor-default text-gray-700 dark:text-gray-200 flex items-center justify-center" />
