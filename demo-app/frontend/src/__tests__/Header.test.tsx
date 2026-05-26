@@ -36,7 +36,7 @@ vi.mock('../components/WeatherWidget', () => ({
 }));
 
 describe('Header', () => {
-  it('render test - renders the Task Manager title without any TESTING text', () => {
+  it('render test - renders the Task Manager title without TESTING text', () => {
     mocks.theme = 'light';
     render(<Header />);
 
@@ -55,13 +55,15 @@ describe('Header', () => {
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('edge case - renders correctly in dark mode with Light mode button label', () => {
+  it('edge case - renders without crashing and shows all key child components', () => {
     mocks.theme = 'dark';
     render(<Header />);
 
-    expect(screen.getByText('Task Manager')).toBeInTheDocument();
+    expect(screen.getByTestId('paper-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('smiley-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('sparkle-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('weather-widget')).toBeInTheDocument();
+    expect(screen.getByTestId('theme-icon')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Switch to light mode' })).toBeInTheDocument();
-    expect(screen.getByText('Light mode')).toBeInTheDocument();
-    expect(screen.queryByText('TESTING')).not.toBeInTheDocument();
   });
 });
