@@ -36,7 +36,7 @@ vi.mock('../components/WeatherWidget', () => ({
 }));
 
 describe('Header', () => {
-  it('render test - renders the Task Manager title without the word TESTING', () => {
+  it('render test - renders the Task Manager title without any TESTING text', () => {
     mocks.theme = 'light';
     render(<Header />);
 
@@ -59,6 +59,7 @@ describe('Header', () => {
     mocks.theme = 'dark';
     render(<Header />);
 
+    expect(screen.getByText('Task Manager')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Switch to light mode' })).toBeInTheDocument();
     expect(screen.getByText('Light mode')).toBeInTheDocument();
     expect(screen.queryByText('TESTING')).not.toBeInTheDocument();
