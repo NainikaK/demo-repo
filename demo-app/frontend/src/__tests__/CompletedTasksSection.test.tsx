@@ -3,9 +3,15 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { CompletedTasksSection } from '../components/CompletedTasksSection';
 import type { Task } from '../types';
+import {
+  LABEL_COMPLETED_TASKS_HEADING,
+  LABEL_CHECK_TICK_ICON_ARIA,
+  LABEL_CHEVRON_COLLAPSE_ARIA,
+  LABEL_NO_COMPLETED_TASKS,
+} from '../utils/strings';
 
 vi.mock('../components/TaskCard', () => ({
-  TaskCard: ({ task }: { task: { title: string } }) => (
+  TaskCard: ({ task }: { task: Task }) => (
     <div data-testid="task-card">{task.title}</div>
   ),
 }));
@@ -29,10 +35,10 @@ function makeTask(id: string): Task {
 }
 
 describe('CompletedTasksSection', () => {
-  it('render test - renders the heading text and a checkmark svg icon immediately after the heading text', () => {
+  it('render test - renders the heading text and checkmark icon inside the h2', () => {
     render(
       <CompletedTasksSection
-        completedTasks={[]}
+        completedTasks={[makeTask('1')]}
         onComplete={vi.fn()}
         selectedPriority={null}
         onPriorityChange={vi.fn()}
@@ -41,17 +47,17 @@ describe('CompletedTasksSection', () => {
 
     const heading = screen.getByRole('heading', { level: 2 });
     expect(heading).toBeInTheDocument();
+    expect(heading).toHaveTextContent(LABEL_COMPLETED_TASKS_HEADING);
 
-    // The checkmark SVG should have an aria-label rendered inside the h2
-    const checkmarkSvg = heading.querySelector('svg[aria-label]');
-    expect(checkmarkSvg).toBeInTheDocument();
+    const checkIcon = screen.getByRole('img', { name: LABEL_CHECK_TICK_ICON_ARIA });
+    expect(checkIcon).toBeInTheDocument();
+    expect(heading).toContainElement(checkIcon);
   });
 
-  it('interaction test - clicking the toggle button collapses the section and hides task cards', async () => {
-    const tasks = [makeTask('1'), makeTask('2')];
+  it('interaction test - clicking the toggle button collapses the task list', async () => {
     render(
       <CompletedTasksSection
-        completedTasks={tasks}
+        completedTasks={[makeTask('1'), makeTask('2')]}
         onComplete={vi.fn()}
         selectedPriority={null}
         onPriorityChange={vi.fn()}
@@ -60,13 +66,13 @@ describe('CompletedTasksSection', () => {
 
     expect(screen.getAllByTestId('task-card')).toHaveLength(2);
 
-    const toggleButton = screen.getByRole('button', { name: /collapse/i });
+    const toggleButton = screen.getByRole('button', { name: LABEL_CHEVRON_COLLAPSE_ARIA });
     await userEvent.click(toggleButton);
 
     expect(screen.queryByTestId('task-card')).not.toBeInTheDocument();
   });
 
-  it('edge case - renders without crashing when completedTasks is an empty array', () => {
+  it('edge case - renders without crashing when completedTasks is empty and shows empty message', () => {
     render(
       <CompletedTasksSection
         completedTasks={[]}
@@ -76,11 +82,9 @@ describe('CompletedTasksSection', () => {
       />
     );
 
-    const heading = screen.getByRole('heading', { level: 2 });
-    expect(heading).toBeInTheDocument();
+    expect(screen.getByText(LABEL_NO_COMPLETED_TASKS)).toBeInTheDocument();
 
-    // Checkmark svg still present even with no tasks
-    const checkmarkSvg = heading.querySelector('svg[aria-label]');
-    expect(checkmarkSvg).toBeInTheDocument();
+    const checkIcon = screen.getByRole('img', { name: LABEL_CHECK_TICK_ICON_ARIA });
+    expect(checkIcon).toBeInTheDocument();
   });
 });
