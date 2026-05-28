@@ -49,6 +49,7 @@ export const LABEL_ASSIGNEE_AVATAR_ARIA_PREFIX = 'Assigned to';
 export const LABEL_CHECK_TICK_ICON_ARIA = 'check tick icon';
 
 export const LABEL_COMPLETED_TASKS_HEADING = 'Completed Tasks';
+export const LABEL_COMPLETED_TASKS_CHECKMARK_ARIA = 'Completed tasks checkmark icon';
 export const LABEL_NO_COMPLETED_TASKS = 'No completed tasks yet';
 export const LABEL_NO_COMPLETED_TASKS_PRIORITY = 'No tasks in this priority yet';
 
