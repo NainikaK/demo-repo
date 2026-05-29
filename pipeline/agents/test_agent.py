@@ -156,14 +156,21 @@ def run(
         git_utils.push_branch(branch_name)
 
     print(f"{_LOG_PREFIX} running frontend test suite")
-    frontend_cases = _run_frontend_tests()
-    frontend_cases = _correct_frontend_tests(frontend_cases, frontend_summary, anthropic_client, branch_name)
+    _fe_result = _run_frontend_tests()
+    frontend_cases = _correct_frontend_tests(_fe_result[0], frontend_summary, anthropic_client, branch_name)
 
     print(f"{_LOG_PREFIX} running backend test suite")
-    backend_cases = _run_backend_tests(backend_summary)
-    backend_cases = _correct_backend_tests(backend_cases, backend_summary, anthropic_client, branch_name)
+    _be_result = _run_backend_tests(backend_summary)
+    backend_cases = _correct_backend_tests(_be_result[0], backend_summary, anthropic_client, branch_name)
 
-    results = _aggregate_results(work_item_id, frontend_cases, backend_cases, written_files)
+    results = _aggregate_results(
+        work_item_id,
+        frontend_cases,
+        backend_cases,
+        written_files,
+        frontend_coverage=(_fe_result[1], _fe_result[2]),
+        backend_coverage=(_be_result[1], _be_result[2]),
+    )
     print(
         f"{_LOG_PREFIX} complete "
         f"total={results.total_tests} passed={results.passed} failed={results.failed}"
@@ -569,7 +576,7 @@ def _correct_frontend_tests(
             break
 
         git_utils.push_branch(branch_name)
-        new_cases = _run_frontend_tests()
+        new_cases, _, _ = _run_frontend_tests()
         new_failed = sum(1 for c in new_cases if c.status == TestStatus.failed)
         if new_failed < len(failed):
             best = new_cases
@@ -669,7 +676,7 @@ def _correct_backend_tests(
             break
 
         git_utils.push_branch(branch_name)
-        new_cases = _run_backend_tests(backend_summary)
+        new_cases, _, _ = _run_backend_tests(backend_summary)
         new_failed = sum(1 for c in new_cases if c.status == TestStatus.failed)
         if new_failed < len(failed):
             best = new_cases
@@ -1110,40 +1117,52 @@ def _validate_and_write_tests(file_map: dict[str, str]) -> list[str]:
     return written
 
 
-def _run_frontend_tests() -> list[TestCase]:
-    """Run the Vitest suite and return parsed test cases.
+def _run_frontend_tests() -> tuple[list[TestCase], float, dict[str, float]]:
+    """Run the Vitest suite and return parsed test cases plus coverage data.
 
     Returns a single error TestCase on runner failure rather than raising.
     """
     frontend_dir = git_utils.get_repo_root() / "demo-app" / "frontend"
     try:
         result = subprocess.run(
-            ["npx", "vitest", "run", "--reporter=json"],
+            [
+                "npx", "vitest", "run",
+                "--reporter=json",
+                "--coverage",
+                "--coverage.reporter=json-summary",
+            ],
             cwd=frontend_dir,
             capture_output=True,
             text=True,
             timeout=_TEST_RUNNER_TIMEOUT,
+            shell=True,
         )
-        return _parse_vitest_output(result.stdout or result.stderr)
+        cases = _parse_vitest_output(result.stdout or result.stderr)
+        cov_pct, cov_files = _parse_vitest_coverage(frontend_dir)
+        return (cases, cov_pct, cov_files)
     except Exception as exc:
         print(f"{_LOG_PREFIX} warning: frontend test runner failed — {exc}")
-        return [TestCase(
-            name="frontend_suite_runner_error",
-            status=TestStatus.failed,
-            duration_ms=0.0,
-            error_message=str(exc),
-        )]
+        return (
+            [TestCase(
+                name="frontend_suite_runner_error",
+                status=TestStatus.failed,
+                duration_ms=0.0,
+                error_message=str(exc),
+            )],
+            0.0,
+            {},
+        )
 
 
-def _run_backend_tests(backend_summary: ChangeSummary) -> list[TestCase]:
-    """Run the dotnet test suite and return parsed test cases.
+def _run_backend_tests(backend_summary: ChangeSummary) -> tuple[list[TestCase], float, dict[str, float]]:
+    """Run the dotnet test suite and return parsed test cases plus coverage data.
 
-    Returns an empty list when there are no backend changes. Returns a single
+    Returns an empty tuple when there are no backend changes. Returns a single
     error TestCase on runner failure rather than raising.
     """
     if not backend_summary.files_created and not backend_summary.files_modified:
         print(f"{_LOG_PREFIX} no backend changes — skipping backend test suite")
-        return []
+        return ([], 0.0, {})
     backend_dir = git_utils.get_repo_root() / "demo-app" / "backend"
     results_dir = backend_dir / "TestResults"
     results_file = results_dir / "test-results.trx"
@@ -1154,6 +1173,7 @@ def _run_backend_tests(backend_summary: ChangeSummary) -> list[TestCase]:
         proc = subprocess.run(
             [
                 "dotnet", "test",
+                "--collect", "XPlat Code Coverage",
                 "--logger", "trx;LogFileName=test-results.trx",
                 "--results-directory", str(results_dir),
             ],
@@ -1161,26 +1181,37 @@ def _run_backend_tests(backend_summary: ChangeSummary) -> list[TestCase]:
             capture_output=True,
             text=True,
             timeout=_TEST_RUNNER_TIMEOUT,
+            shell=True,
         )
         if not results_file.exists():
             # Build or runtime failure — surface stderr as a failed test case
             err = (proc.stderr or proc.stdout or "no output")[:2000]
             print(f"{_LOG_PREFIX} dotnet test produced no results file — stderr: {err}")
-            return [TestCase(
-                name="dotnet_build_or_runtime_error",
-                status=TestStatus.failed,
-                duration_ms=0.0,
-                error_message=err,
-            )]
-        return _parse_trx_output(results_file)
+            return (
+                [TestCase(
+                    name="dotnet_build_or_runtime_error",
+                    status=TestStatus.failed,
+                    duration_ms=0.0,
+                    error_message=err,
+                )],
+                0.0,
+                {},
+            )
+        cases = _parse_trx_output(results_file)
+        cov_pct, cov_files = _parse_cobertura_coverage(results_dir)
+        return (cases, cov_pct, cov_files)
     except Exception as exc:
         print(f"{_LOG_PREFIX} warning: backend test runner failed — {exc}")
-        return [TestCase(
-            name="backend_suite_runner_error",
-            status=TestStatus.failed,
-            duration_ms=0.0,
-            error_message=str(exc),
-        )]
+        return (
+            [TestCase(
+                name="backend_suite_runner_error",
+                status=TestStatus.failed,
+                duration_ms=0.0,
+                error_message=str(exc),
+            )],
+            0.0,
+            {},
+        )
 
 
 def _parse_vitest_output(raw: str) -> list[TestCase]:
@@ -1258,6 +1289,62 @@ def _parse_trx_output(results_file: Path) -> list[TestCase]:
     return cases
 
 
+def _parse_vitest_coverage(frontend_dir: Path) -> tuple[float, dict[str, float]]:
+    """Read vitest coverage-summary.json and return (overall_pct, {repo_relative_path: pct})."""
+    coverage_file = frontend_dir / "coverage" / "coverage-summary.json"
+    if not coverage_file.exists():
+        return (0.0, {})
+    try:
+        data = json.loads(coverage_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return (0.0, {})
+    total_pct = float((data.get("total") or {}).get("lines", {}).get("pct") or 0.0)
+    repo_root = git_utils.get_repo_root()
+    files: dict[str, float] = {}
+    for key, val in data.items():
+        if key == "total":
+            continue
+        pct = float((val.get("lines") or {}).get("pct") or 0.0)
+        try:
+            rel = Path(key).relative_to(repo_root)
+            files[str(rel).replace("\\", "/")] = pct
+        except ValueError:
+            files[key] = pct
+    return (total_pct, files)
+
+
+def _parse_cobertura_coverage(results_dir: Path) -> tuple[float, dict[str, float]]:
+    """Find coverlet's Cobertura XML and return (overall_pct, {repo_relative_path: pct}).
+
+    The file lives under a non-deterministic GUID subfolder, so we glob for it.
+    """
+    matches = list(results_dir.glob("**/coverage.cobertura.xml"))
+    if not matches:
+        return (0.0, {})
+    try:
+        tree = ET.parse(matches[0])
+    except ET.ParseError:
+        return (0.0, {})
+    root_el = tree.getroot()
+    overall_pct = float(root_el.get("line-rate", "0")) * 100.0
+    repo_root = git_utils.get_repo_root()
+    files: dict[str, float] = {}
+    for cls in root_el.findall(".//class"):
+        filename = cls.get("filename", "")
+        if not filename:
+            continue
+        line_rate = float(cls.get("line-rate", "0")) * 100.0
+        cls_path = Path(filename)
+        if not cls_path.is_absolute():
+            cls_path = results_dir.parent / filename
+        try:
+            rel = cls_path.relative_to(repo_root)
+            files[str(rel).replace("\\", "/")] = line_rate
+        except ValueError:
+            files[filename] = line_rate
+    return (overall_pct, files)
+
+
 def _parse_duration_ms(duration_str: str) -> float:
     """Parse a duration string ('00:00:00.012' or '12.5') to milliseconds."""
     try:
@@ -1273,11 +1360,16 @@ def _parse_duration_ms(duration_str: str) -> float:
     return 0.0
 
 
+_COVERAGE_THRESHOLD = 70.0
+
+
 def _aggregate_results(
     work_item_id: str,
     frontend_cases: list[TestCase],
     backend_cases: list[TestCase],
     written_files: list[str],
+    frontend_coverage: tuple[float, dict[str, float]] | None = None,
+    backend_coverage: tuple[float, dict[str, float]] | None = None,
 ) -> TestResults:
     """Combine frontend and backend test cases into a single TestResults record."""
     all_cases = frontend_cases + backend_cases
@@ -1285,6 +1377,31 @@ def _aggregate_results(
     passed = sum(1 for c in all_cases if c.status == TestStatus.passed)
     failed = sum(1 for c in all_cases if c.status == TestStatus.failed)
     skipped = sum(1 for c in all_cases if c.status == TestStatus.skipped)
+
+    # Coverage is only considered "available" for a suite when the file dict is
+    # non-empty — an empty dict means the suite didn't run or coverage failed.
+    fe_pct: float | None = frontend_coverage[0] if (frontend_coverage and frontend_coverage[1]) else None
+    be_pct: float | None = backend_coverage[0] if (backend_coverage and backend_coverage[1]) else None
+
+    if fe_pct is not None and be_pct is not None:
+        line_cov = (fe_pct + be_pct) / 2.0
+    elif fe_pct is not None:
+        line_cov = fe_pct
+    elif be_pct is not None:
+        line_cov = be_pct
+    else:
+        line_cov = 0.0
+
+    below: list[str] = []
+    if frontend_coverage:
+        for path, pct in frontend_coverage[1].items():
+            if pct < _COVERAGE_THRESHOLD:
+                below.append(path)
+    if backend_coverage:
+        for path, pct in backend_coverage[1].items():
+            if pct < _COVERAGE_THRESHOLD:
+                below.append(path)
+
     return TestResults(
         work_item_id=work_item_id,
         total_tests=total,
@@ -1292,9 +1409,9 @@ def _aggregate_results(
         failed=failed,
         skipped=skipped,
         coverage=CoverageReport(
-            line_coverage_percent=0.0,
+            line_coverage_percent=line_cov,
             files_checked=written_files,
-            below_threshold=[],
+            below_threshold=below,
         ),
         test_cases=all_cases,
     )

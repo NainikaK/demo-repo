@@ -10,6 +10,7 @@ import { CommentPanel } from '../components/CommentPanel';
 import { TaskSearchBar } from '../components/TaskSearchBar';
 import { TaskStatsDashboard } from '../components/TaskStatsDashboard';
 import { SortButton } from '../components/SortButton';
+import { PageCheckmarkIcon } from '../components/PageCheckmarkIcon';
 import { useUpcomingTasks } from '../hooks/useUpcomingTasks';
 import { useCompletedTasks } from '../hooks/useCompletedTasks';
 import { usePriorityFilter } from '../hooks/usePriorityFilter';
@@ -228,6 +229,9 @@ export function HomePage() {
       </div>
       <div className="flex justify-center mt-6">
         <SmileyIcon />
+      </div>
+      <div className="flex justify-center mt-6">
+        <PageCheckmarkIcon />
       </div>
       <CommentPanel
         activeTask={activeCommentTask}

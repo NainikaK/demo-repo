@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { Header } from '../components/Header';
 
 const mocks = vi.hoisted(() => ({
-  theme: 'light' as 'light' | 'dark',
   toggleTheme: vi.fn(),
+  theme: 'light' as 'light' | 'dark',
 }));
 
 vi.mock('../hooks/useTheme', () => ({
@@ -15,46 +15,40 @@ vi.mock('../hooks/useTheme', () => ({
   }),
 }));
 
+vi.mock('../components/WeatherWidget', () => ({
+  WeatherWidget: () => <span data-testid="weather-widget" />,
+}));
+
 vi.mock('../components/PaperIcon', () => ({
   PaperIcon: () => <span data-testid="paper-icon" />,
 }));
 
 vi.mock('../components/SmileyIcon', () => ({
-  SmileyIcon: ({ className }: { className?: string }) => (
-    <span data-testid="smiley-icon" className={className} />
-  ),
+  SmileyIcon: () => <span data-testid="smiley-icon" />,
 }));
 
 vi.mock('../components/SparkleIcon', () => ({
-  SparkleIcon: ({ className }: { className?: string }) => (
-    <span data-testid="sparkle-icon" className={className} />
-  ),
+  SparkleIcon: () => <span data-testid="sparkle-icon" />,
 }));
 
 vi.mock('../components/ThemeIcon', () => ({
   ThemeIcon: () => <span data-testid="theme-icon" />,
 }));
 
-vi.mock('../components/WeatherWidget', () => ({
-  WeatherWidget: () => <span data-testid="weather-widget" />,
-}));
-
 describe('Header', () => {
-  it('render test - renders without crashing and displays the smiley icon to the left of the sparkle icon', () => {
+  it('render test - renders the TESTING label to the right of the Task Manager title', () => {
+    mocks.theme = 'light';
     render(<Header />);
 
-    const smileyIcon = screen.getByTestId('smiley-icon');
-    const sparkleIcon = screen.getByTestId('sparkle-icon');
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading).toBeInTheDocument();
 
-    expect(smileyIcon).toBeInTheDocument();
-    expect(sparkleIcon).toBeInTheDocument();
+    expect(screen.getByText('Task Manager')).toBeInTheDocument();
+    expect(screen.getByText('TESTING')).toBeInTheDocument();
 
-    // Assert smiley comes before sparkle in the DOM
-    const container = smileyIcon.parentElement!;
-    const children = Array.from(container.children);
-    const smileyIndex = children.indexOf(smileyIcon);
-    const sparkleIndex = children.indexOf(sparkleIcon);
-    expect(smileyIndex).toBeLessThan(sparkleIndex);
+    // Verify TESTING is inside the h1 (to the right of the title)
+    expect(heading).toHaveTextContent('Task Manager');
+    expect(heading).toHaveTextContent('TESTING');
   });
 
   it('interaction test - clicking the theme toggle button calls toggleTheme', async () => {
@@ -62,18 +56,17 @@ describe('Header', () => {
     mocks.toggleTheme.mockClear();
     render(<Header />);
 
-    const toggleButton = screen.getByRole('button');
+    const toggleButton = screen.getByRole('button', { name: 'Switch to dark mode' });
     await userEvent.click(toggleButton);
 
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('edge case - smiley icon has no interactive behaviour (no role button, no tabindex, no click handler)', () => {
+  it('edge case - renders without crashing when theme is dark and shows correct button label', () => {
+    mocks.theme = 'dark';
     render(<Header />);
 
-    const smileyIcon = screen.getByTestId('smiley-icon');
-    expect(smileyIcon.tagName.toLowerCase()).not.toBe('button');
-    expect(smileyIcon).not.toHaveAttribute('tabindex');
-    expect(smileyIcon.onclick).toBeNull();
+    expect(screen.getByRole('button', { name: 'Switch to light mode' })).toBeInTheDocument();
+    expect(screen.getByText('TESTING')).toBeInTheDocument();
   });
 });
