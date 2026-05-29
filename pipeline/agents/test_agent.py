@@ -1124,6 +1124,15 @@ def _run_frontend_tests() -> tuple[list[TestCase], float, dict[str, float]]:
     """
     frontend_dir = git_utils.get_repo_root() / "demo-app" / "frontend"
     try:
+        subprocess.run(
+            ["npm", "install", "--legacy-peer-deps"],
+            cwd=frontend_dir,
+            capture_output=True,
+            text=True,
+            timeout=_TEST_RUNNER_TIMEOUT,
+            shell=True,
+            check=True,
+        )
         result = subprocess.run(
             [
                 "npx", "vitest", "run",
