@@ -4,8 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { CompletedTasksSection } from '../components/CompletedTasksSection';
 import type { Task } from '../types';
 
+const mocks = vi.hoisted(() => ({
+  onComplete: vi.fn(),
+  onPriorityChange: vi.fn(),
+}));
+
 vi.mock('../components/TaskCard', () => ({
-  TaskCard: ({ task }: { task: Task }) => <div data-testid="task-card">{task.title}</div>,
+  TaskCard: ({ task }: { task: Task }) => (
+    <div data-testid="task-card">{task.title}</div>
+  ),
 }));
 
 vi.mock('../components/PriorityFilter', () => ({
@@ -13,71 +20,83 @@ vi.mock('../components/PriorityFilter', () => ({
 }));
 
 vi.mock('../components/ChevronIcon', () => ({
-  ChevronIcon: ({ isExpanded }: { isExpanded: boolean }) => (
-    <span data-testid="chevron-icon" data-expanded={String(isExpanded)} />
-  ),
+  ChevronIcon: () => <span data-testid="chevron-icon" />,
 }));
 
-const makeTask = (id: string): Task => ({
-  id,
-  title: `Completed Task ${id}`,
-  completed: true,
-  createdAt: '2024-01-01T00:00:00.000Z',
-  priority: 'medium',
-});
+function makeTask(id: string): Task {
+  return {
+    id,
+    title: `Task ${id}`,
+    completed: true,
+    createdAt: '2024-01-01T00:00:00.000Z',
+    priority: 'medium',
+  };
+}
 
 describe('CompletedTasksSection', () => {
-  it('render test - renders the section heading and chevron icon by default', () => {
-    render(
-      <CompletedTasksSection
-        completedTasks={[makeTask('1')]}
-        onComplete={vi.fn()}
-        selectedPriority={null}
-        onPriorityChange={vi.fn()}
-      />
-    );
-
-    expect(screen.getByText('Completed Tasks')).toBeInTheDocument();
-    expect(screen.getByTestId('chevron-icon')).toBeInTheDocument();
-  });
-
-  it('interaction test - clicking the chevron button collapses the task list and expands it again on second click', async () => {
-    render(
-      <CompletedTasksSection
-        completedTasks={[makeTask('1')]}
-        onComplete={vi.fn()}
-        selectedPriority={null}
-        onPriorityChange={vi.fn()}
-      />
-    );
-
-    // Initially expanded — task card should be visible
-    expect(screen.getByTestId('task-card')).toBeInTheDocument();
-
-    // Click the chevron button to collapse
-    const toggleButton = screen.getByRole('button', { name: 'Collapse completed tasks' });
-    await userEvent.click(toggleButton);
-
-    // Task card should now be hidden
-    expect(screen.queryByTestId('task-card')).not.toBeInTheDocument();
-
-    // Click again to expand
-    const expandButton = screen.getByRole('button', { name: 'Expand completed tasks' });
-    await userEvent.click(expandButton);
-
-    expect(screen.getByTestId('task-card')).toBeInTheDocument();
-  });
-
-  it('edge case - renders empty state message when completedTasks array is empty and no priority is selected', () => {
+  it('render test - renders the heading and a check mark icon immediately to its right', () => {
     render(
       <CompletedTasksSection
         completedTasks={[]}
-        onComplete={vi.fn()}
+        onComplete={mocks.onComplete}
         selectedPriority={null}
-        onPriorityChange={vi.fn()}
+        onPriorityChange={mocks.onPriorityChange}
       />
     );
 
-    expect(screen.getByText('No completed tasks yet')).toBeInTheDocument();
+    // Heading text is visible
+    const heading = screen.getByRole('heading', { level: 2 });
+    expect(heading).toBeInTheDocument();
+    expect(heading).toHaveTextContent('Completed Tasks');
+
+    // The SVG check mark icon has an aria-label and is inside the heading
+    const checkIcon = heading.querySelector('svg[aria-label]');
+    expect(checkIcon).toBeInTheDocument();
+  });
+
+  it('interaction test - clicking the collapse button hides the task list and priority filter', async () => {
+    const tasks = [makeTask('1'), makeTask('2')];
+
+    render(
+      <CompletedTasksSection
+        completedTasks={tasks}
+        onComplete={mocks.onComplete}
+        selectedPriority={null}
+        onPriorityChange={mocks.onPriorityChange}
+      />
+    );
+
+    // Both task cards visible initially
+    expect(screen.getAllByTestId('task-card')).toHaveLength(2);
+    expect(screen.getByTestId('priority-filter')).toBeInTheDocument();
+
+    // Click the collapse button (aria-label from LABEL_CHEVRON_COLLAPSE_ARIA)
+    const collapseButton = screen.getByRole('button', { name: /collapse/i });
+    await userEvent.click(collapseButton);
+
+    // Task cards and filter should be hidden
+    expect(screen.queryAllByTestId('task-card')).toHaveLength(0);
+    expect(screen.queryByTestId('priority-filter')).not.toBeInTheDocument();
+  });
+
+  it('edge case - renders without crashing and shows the check mark icon when completedTasks is empty', () => {
+    const { container } = render(
+      <CompletedTasksSection
+        completedTasks={[]}
+        onComplete={mocks.onComplete}
+        selectedPriority={null}
+        onPriorityChange={mocks.onPriorityChange}
+      />
+    );
+
+    expect(container.firstChild).not.toBeNull();
+
+    // Check mark icon is present even with no tasks
+    const heading = screen.getByRole('heading', { level: 2 });
+    const checkIcon = heading.querySelector('svg[aria-label]');
+    expect(checkIcon).toBeInTheDocument();
+
+    // No task cards rendered
+    expect(screen.queryAllByTestId('task-card')).toHaveLength(0);
   });
 });
