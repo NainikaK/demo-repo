@@ -1,21 +1,15 @@
-import { CheckCircle } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 export interface PageCheckmarkIconProps {
   className?: string;
 }
 
-const ICON_SIZE = 8;
-const ICON_COLOR = '#22C55E';
-
-export function PageCheckmarkIcon(_props: PageCheckmarkIconProps) {
+export function PageCheckmarkIcon({ className }: PageCheckmarkIconProps) {
   return (
-    <CheckCircle
-      width={ICON_SIZE}
-      height={ICON_SIZE}
-      color={ICON_COLOR}
+    <Check
       aria-hidden="true"
       focusable={false}
-      className="pointer-events-none"
+      className={`pointer-events-none cursor-default ${className ?? ''}`}
     />
   );
 }

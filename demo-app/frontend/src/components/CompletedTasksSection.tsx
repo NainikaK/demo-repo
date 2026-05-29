@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { TaskCard } from './TaskCard';
 import { PriorityFilter } from './PriorityFilter';
 import { ChevronIcon } from './ChevronIcon';
+import { PageCheckmarkIcon } from './PageCheckmarkIcon';
 import type { Task, Priority } from '../types';
 import {
   LABEL_COMPLETED_TASKS_HEADING,
@@ -39,6 +40,7 @@ export function CompletedTasksSection({
     <section>
       <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
         {LABEL_COMPLETED_TASKS_HEADING}
+        <PageCheckmarkIcon className="w-[1em] h-[1em] text-gray-800 dark:text-gray-200" />
         <button
           type="button"
           onClick={handleToggle}
