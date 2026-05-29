@@ -268,4 +268,83 @@ runs/                          ← pipeline run records (gitignored)
 ---
 
 *Full agent specifications: [`pipeline/execution_guides/`](pipeline/execution_guides/)*  
-*Last updated: 2026-05-04*
+*Last updated: 2026-05-20*
+
+---
+
+## Teams Integration
+
+The `teams/` folder contains the full specification for a Microsoft Teams mediation
+layer that sits in front of the pipeline. It is Phase 1 (documentation only) — no
+pipeline agents, orchestrator logic, ADO work item handling, or application code is
+modified.
+
+**What the Teams layer is:** A pure UI and routing layer. Users interact with the
+pipeline exclusively through Teams. The bot translates Teams messages into ADO work
+items, forwards pipeline events back as notifications, and handles human-in-the-loop
+decisions via Adaptive Cards.
+
+**What is NOT changed:** The orchestrator, all eight agents, ADO work item logic, GitHub
+integration, and all audit/merge rules remain exactly as documented above.
+
+### Three Integration Points
+
+| Hook | Direction | What it does |
+|------|-----------|-------------|
+| **Intake Hook** | Teams → ADO | Bot collects requirement details via guided conversation; creates ADO work item with `ai-pipeline-trigger` tag |
+| **Notify Hook** | ADO → Teams | Bot receives ADO service hook webhooks; posts 15 types of pipeline notifications to the correct WI thread |
+| **Human Input Hook** | ADO → Teams → ADO | Bot detects `[TEAMS_INPUT_NEEDED]` agent comments; sends Adaptive Cards to user; posts `[TEAMS_INPUT_RESPONSE]` back to ADO |
+
+### Platform (confirmed Phase 2)
+
+**Copilot Studio (Teams-embedded) + Power Automate.** No Azure Bot Framework, no custom server.
+
+- Copilot Studio: conversation logic, topic routing, Adaptive Cards
+- Power Automate: ADO REST API calls (HTTP Premium connector)
+- Copilot Studio environment name: **SDLC Bot**
+- ADO project: `https://dev.azure.com/nainika-dev/sdlc-agent`
+
+### What is in teams/
+
+```
+teams/
+├── README.md                           ← full design doc, architecture, phase status
+├── build-guides/                       ← Phase 2 step-by-step implementation guides
+│   ├── phase2-copilot-studio-setup.md  ← create agent, topics, Adaptive Cards in Copilot Studio
+│   ├── phase2-power-automate-flow.md   ← build the "SDLC - Create ADO Work Item" flow
+│   ├── phase2-adaptive-card-json.md    ← complete Adaptive Card JSON for both Phase 2 cards
+│   └── phase2-teams-deployment.md      ← publish, deploy to Teams, end-to-end test checklist
+├── bot/
+│   ├── bot_agent.md                    ← bot responsibilities, commands, tone, state management
+│   └── adaptive_cards/
+│       ├── intake_form.md
+│       ├── requirement_confirmation.md
+│       ├── clarification_card.md
+│       ├── approval_card.md
+│       ├── failure_retry_card.md
+│       ├── status_card.md
+│       └── run_summary_card.md
+├── webhooks/
+│   ├── ado_to_teams.md                 ← all 9 ADO webhook events and bot responses
+│   └── webhook_payload_contracts.md    ← exact ADO payload JSON for each event
+├── flows/
+│   ├── intake_flow.md                  ← user message → ADO work item created
+│   ├── notify_flow.md                  ← all 15 notification types and sequencing
+│   └── human_input_flow.md            ← [TEAMS_INPUT_NEEDED] → card → ADO response
+└── hooks/
+    └── input_needed_contract.md        ← exact [TEAMS_INPUT_NEEDED] comment format and rules
+```
+
+### Agents That Will Use [TEAMS_INPUT_NEEDED] (Phase 4)
+
+The following agents currently handle human decisions without Teams awareness. In
+Phase 4, each will be updated to post `[TEAMS_INPUT_NEEDED]` comments to ADO:
+
+| Agent | Current behaviour | Phase 4 change |
+|-------|-----------------|----------------|
+| **Clarification Agent** (`pipeline/agents/clarification_agent.py`) | Posts plain clarifying questions to ADO when score is 50–79; orchestrator polls for PO update | Replace plain comment with `[TEAMS_INPUT_NEEDED]` JSON; resume on `[TEAMS_INPUT_RESPONSE]` |
+| **Story Writer Agent** (`pipeline/agents/story_writer_agent.py`) | Posts `[DEPENDENCY MISSING]` and `[POSSIBLE DUPLICATE]` flags as plain comments; blocks pipeline | Replace flags with `[TEAMS_INPUT_NEEDED]` JSON with option choices |
+| **Supervisor Agent** (`pipeline/agents/supervisor_agent.py`) | Opens draft PR at score 7.0–7.99; waits for human to manually promote via GitHub | Post `[TEAMS_INPUT_NEEDED]` comment; bot sends Approval card; merge decision returned via `[TEAMS_INPUT_RESPONSE]` |
+
+No agent files are modified in Phase 1. The `[TEAMS_INPUT_NEEDED]` contract is defined
+in [`teams/hooks/input_needed_contract.md`](teams/hooks/input_needed_contract.md).
