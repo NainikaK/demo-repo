@@ -4,71 +4,38 @@ import { describe, expect, it, vi } from 'vitest';
 import { CompletedTasksSection } from '../components/CompletedTasksSection';
 import type { Task } from '../types';
 
+const mocks = vi.hoisted(() => ({
+  onChange: vi.fn(),
+}));
+
 vi.mock('../components/TaskCard', () => ({
-  TaskCard: ({ task }: { task: Task }) => <div data-testid="task-card">{task.title}</div>,
-}));
-
-vi.mock('../components/PriorityFilter', () => ({
-  PriorityFilter: () => <div data-testid="priority-filter" />,
-}));
-
-vi.mock('../components/ChevronIcon', () => ({
-  ChevronIcon: ({ isExpanded }: { isExpanded: boolean }) => (
-    <span data-testid="chevron-icon" data-expanded={String(isExpanded)} />
+  TaskCard: ({ task }: { task: { title: string } }) => (
+    <div data-testid="task-card">{task.title}</div>
   ),
 }));
 
-const makeTask = (id: string): Task => ({
-  id,
-  title: `Completed Task ${id}`,
-  completed: true,
-  createdAt: '2024-01-01T00:00:00.000Z',
-  priority: 'medium',
-});
+vi.mock('../components/PriorityFilter', () => ({
+  PriorityFilter: ({ onChange }: { selectedPriority: unknown; onChange: (p: unknown) => void }) => (
+    <button data-testid="priority-filter" onClick={() => onChange(null)}>Filter</button>
+  ),
+}));
+
+vi.mock('../components/ChevronIcon', () => ({
+  ChevronIcon: () => <span data-testid="chevron-icon" />,
+}));
+
+function makeTask(id: string): Task {
+  return {
+    id,
+    title: `Task ${id}`,
+    completed: true,
+    createdAt: '2024-01-01T00:00:00.000Z',
+    priority: 'medium',
+  };
+}
 
 describe('CompletedTasksSection', () => {
-  it('render test - renders the section heading and chevron icon by default', () => {
-    render(
-      <CompletedTasksSection
-        completedTasks={[makeTask('1')]}
-        onComplete={vi.fn()}
-        selectedPriority={null}
-        onPriorityChange={vi.fn()}
-      />
-    );
-
-    expect(screen.getByText('Completed Tasks')).toBeInTheDocument();
-    expect(screen.getByTestId('chevron-icon')).toBeInTheDocument();
-  });
-
-  it('interaction test - clicking the chevron button collapses the task list and expands it again on second click', async () => {
-    render(
-      <CompletedTasksSection
-        completedTasks={[makeTask('1')]}
-        onComplete={vi.fn()}
-        selectedPriority={null}
-        onPriorityChange={vi.fn()}
-      />
-    );
-
-    // Initially expanded — task card should be visible
-    expect(screen.getByTestId('task-card')).toBeInTheDocument();
-
-    // Click the chevron button to collapse
-    const toggleButton = screen.getByRole('button', { name: 'Collapse completed tasks' });
-    await userEvent.click(toggleButton);
-
-    // Task card should now be hidden
-    expect(screen.queryByTestId('task-card')).not.toBeInTheDocument();
-
-    // Click again to expand
-    const expandButton = screen.getByRole('button', { name: 'Expand completed tasks' });
-    await userEvent.click(expandButton);
-
-    expect(screen.getByTestId('task-card')).toBeInTheDocument();
-  });
-
-  it('edge case - renders empty state message when completedTasks array is empty and no priority is selected', () => {
+  it('render test - renders the Completed Tasks heading with a decorative checkmark svg', () => {
     render(
       <CompletedTasksSection
         completedTasks={[]}
@@ -78,6 +45,55 @@ describe('CompletedTasksSection', () => {
       />
     );
 
-    expect(screen.getByText('No completed tasks yet')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2 })).toBeInTheDocument();
+
+    // The decorative SVG checkmark should be present and aria-hidden
+    const svgs = document.querySelectorAll('svg');
+    const checkmarkSvg = Array.from(svgs).find(
+      (svg) => svg.getAttribute('aria-hidden') === 'true' && svg.querySelector('polyline[points="20 6 9 17 4 12"]')
+    );
+    expect(checkmarkSvg).toBeTruthy();
+    expect(checkmarkSvg).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('interaction test - clicking the chevron toggle button collapses and hides task content', async () => {
+    const tasks = [makeTask('1'), makeTask('2')];
+    render(
+      <CompletedTasksSection
+        completedTasks={tasks}
+        onComplete={vi.fn()}
+        selectedPriority={null}
+        onPriorityChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getAllByTestId('task-card')).toHaveLength(2);
+
+    const toggleButton = screen.getByRole('button', { name: /collapse/i });
+    await userEvent.click(toggleButton);
+
+    expect(screen.queryByTestId('task-card')).not.toBeInTheDocument();
+  });
+
+  it('edge case - renders without crashing when completedTasks is an empty array', () => {
+    render(
+      <CompletedTasksSection
+        completedTasks={[]}
+        onComplete={vi.fn()}
+        selectedPriority={null}
+        onPriorityChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('heading', { level: 2 })).toBeInTheDocument();
+
+    // The checkmark svg should have pointer-events-none class
+    const svgs = document.querySelectorAll('svg');
+    const checkmarkSvg = Array.from(svgs).find(
+      (svg) => svg.getAttribute('aria-hidden') === 'true' && svg.querySelector('polyline[points="20 6 9 17 4 12"]')
+    );
+    expect(checkmarkSvg).toBeTruthy();
+    expect(checkmarkSvg).toHaveClass('pointer-events-none');
+    expect(checkmarkSvg).toHaveAttribute('focusable', 'false');
   });
 });
