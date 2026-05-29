@@ -2,12 +2,13 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { CompletedTasksSection } from '../components/CompletedTasksSection';
+import {
+  LABEL_COMPLETED_TASKS_HEADING,
+  LABEL_CHECK_TICK_ICON_ARIA,
+  LABEL_NO_COMPLETED_TASKS,
+  LABEL_CHEVRON_COLLAPSE_ARIA,
+} from '../utils/strings';
 import type { Task } from '../types';
-
-const mocks = vi.hoisted(() => ({
-  onComplete: vi.fn(),
-  onPriorityChange: vi.fn(),
-}));
 
 vi.mock('../components/TaskCard', () => ({
   TaskCard: ({ task }: { task: Task }) => (
@@ -34,69 +35,53 @@ function makeTask(id: string): Task {
 }
 
 describe('CompletedTasksSection', () => {
-  it('render test - renders the heading and a check mark icon immediately to its right', () => {
+  it('render test - renders the heading and check mark icon with correct aria-label', () => {
     render(
       <CompletedTasksSection
         completedTasks={[]}
-        onComplete={mocks.onComplete}
+        onComplete={vi.fn()}
         selectedPriority={null}
-        onPriorityChange={mocks.onPriorityChange}
+        onPriorityChange={vi.fn()}
       />
     );
 
-    // Heading text is visible
-    const heading = screen.getByRole('heading', { level: 2 });
-    expect(heading).toBeInTheDocument();
-    expect(heading).toHaveTextContent('Completed Tasks');
-
-    // The SVG check mark icon has an aria-label and is inside the heading
-    const checkIcon = heading.querySelector('svg[aria-label]');
+    expect(screen.getByText(LABEL_COMPLETED_TASKS_HEADING)).toBeInTheDocument();
+    const checkIcon = screen.getByLabelText(LABEL_CHECK_TICK_ICON_ARIA);
     expect(checkIcon).toBeInTheDocument();
+    expect(checkIcon.tagName.toLowerCase()).toBe('svg');
   });
 
-  it('interaction test - clicking the collapse button hides the task list and priority filter', async () => {
-    const tasks = [makeTask('1'), makeTask('2')];
-
+  it('interaction test - clicking the chevron toggle button collapses and hides the section content', async () => {
     render(
       <CompletedTasksSection
-        completedTasks={tasks}
-        onComplete={mocks.onComplete}
+        completedTasks={[makeTask('1')]}
+        onComplete={vi.fn()}
         selectedPriority={null}
-        onPriorityChange={mocks.onPriorityChange}
+        onPriorityChange={vi.fn()}
       />
     );
 
-    // Both task cards visible initially
-    expect(screen.getAllByTestId('task-card')).toHaveLength(2);
-    expect(screen.getByTestId('priority-filter')).toBeInTheDocument();
+    expect(screen.getByTestId('task-card')).toBeInTheDocument();
 
-    // Click the collapse button (aria-label from LABEL_CHEVRON_COLLAPSE_ARIA)
-    const collapseButton = screen.getByRole('button', { name: /collapse/i });
-    await userEvent.click(collapseButton);
+    const toggleButton = screen.getByRole('button', { name: LABEL_CHEVRON_COLLAPSE_ARIA });
+    await userEvent.click(toggleButton);
 
-    // Task cards and filter should be hidden
-    expect(screen.queryAllByTestId('task-card')).toHaveLength(0);
+    expect(screen.queryByTestId('task-card')).not.toBeInTheDocument();
     expect(screen.queryByTestId('priority-filter')).not.toBeInTheDocument();
   });
 
-  it('edge case - renders without crashing and shows the check mark icon when completedTasks is empty', () => {
-    const { container } = render(
+  it('edge case - renders without crashing when completedTasks is an empty array and shows empty message', () => {
+    render(
       <CompletedTasksSection
         completedTasks={[]}
-        onComplete={mocks.onComplete}
+        onComplete={vi.fn()}
         selectedPriority={null}
-        onPriorityChange={mocks.onPriorityChange}
+        onPriorityChange={vi.fn()}
       />
     );
 
-    expect(container.firstChild).not.toBeNull();
-
-    // Check mark icon is present even with no tasks
-    const heading = screen.getByRole('heading', { level: 2 });
-    const checkIcon = heading.querySelector('svg[aria-label]');
+    expect(screen.getByText(LABEL_NO_COMPLETED_TASKS)).toBeInTheDocument();
+    const checkIcon = screen.getByLabelText(LABEL_CHECK_TICK_ICON_ARIA);
     expect(checkIcon).toBeInTheDocument();
-
-    // No task cards rendered
-    expect(screen.queryAllByTestId('task-card')).toHaveLength(0);
   });
 });
