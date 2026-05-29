@@ -5,7 +5,7 @@ import { CompletedTasksSection } from '../components/CompletedTasksSection';
 import type { Task } from '../types';
 
 vi.mock('../components/TaskCard', () => ({
-  TaskCard: ({ task }: { task: Task }) => (
+  TaskCard: ({ task }: { task: { title: string } }) => (
     <div data-testid="task-card">{task.title}</div>
   ),
 }));
@@ -29,7 +29,7 @@ function makeTask(id: string): Task {
 }
 
 describe('CompletedTasksSection', () => {
-  it('render test - renders an aria-hidden decorative checkmark svg inside the heading alongside the section title', () => {
+  it('render test - renders the heading with a decorative checkmark svg that is aria-hidden and not focusable', () => {
     render(
       <CompletedTasksSection
         completedTasks={[]}
@@ -39,55 +39,47 @@ describe('CompletedTasksSection', () => {
       />
     );
 
+    // The heading must be present
     const heading = screen.getByRole('heading', { level: 2 });
     expect(heading).toBeInTheDocument();
 
-    // The decorative SVG inside the h2 must be aria-hidden and not focusable
-    const svgsInsideHeading = heading.querySelectorAll('svg');
-    // There is at least one SVG (the checkmark) inside the heading
-    expect(svgsInsideHeading.length).toBeGreaterThanOrEqual(1);
+    // The checkmark SVG inside the heading must be aria-hidden (decorative)
+    const svgs = heading.querySelectorAll('svg');
+    // At least one SVG (the checkmark) should be inside the h2
+    expect(svgs.length).toBeGreaterThan(0);
 
-    // Find the checkmark SVG: aria-hidden="true" and focusable="false"
-    const checkmarkSvg = Array.from(svgsInsideHeading).find(
-      (svg) =>
-        svg.getAttribute('aria-hidden') === 'true' &&
-        svg.getAttribute('focusable') === 'false',
+    // Find the checkmark svg — it has aria-hidden="true" and focusable="false"
+    const checkmarkSvg = Array.from(svgs).find(
+      (svg) => svg.getAttribute('aria-hidden') === 'true' && svg.getAttribute('focusable') === 'false'
     );
-    expect(checkmarkSvg).toBeDefined();
-    expect(checkmarkSvg).not.toBeNull();
+    expect(checkmarkSvg).toBeTruthy();
+    expect(checkmarkSvg).toHaveAttribute('aria-hidden', 'true');
+    expect(checkmarkSvg).toHaveAttribute('focusable', 'false');
   });
 
-  it('interaction test - the checkmark svg has no onClick handler, no role button, and no cursor pointer, confirming it is purely decorative', () => {
+  it('interaction test - clicking the chevron toggle button collapses and hides the completed tasks list', async () => {
+    const tasks = [makeTask('1'), makeTask('2')];
     render(
       <CompletedTasksSection
-        completedTasks={[makeTask('1'), makeTask('2')]}
+        completedTasks={tasks}
         onComplete={vi.fn()}
         selectedPriority={null}
         onPriorityChange={vi.fn()}
       />
     );
 
-    const heading = screen.getByRole('heading', { level: 2 });
-    const svgsInsideHeading = heading.querySelectorAll('svg');
+    // Tasks are visible when expanded
+    expect(screen.getAllByTestId('task-card')).toHaveLength(2);
 
-    const checkmarkSvg = Array.from(svgsInsideHeading).find(
-      (svg) =>
-        svg.getAttribute('aria-hidden') === 'true' &&
-        svg.getAttribute('focusable') === 'false',
-    ) as SVGElement | undefined;
+    // Click the toggle button to collapse
+    const toggleButton = screen.getByRole('button');
+    await userEvent.click(toggleButton);
 
-    expect(checkmarkSvg).toBeDefined();
-    // No interactive role
-    expect(checkmarkSvg!.getAttribute('role')).not.toBe('button');
-    // No onclick handler on the element itself
-    expect(checkmarkSvg!.onclick).toBeNull();
-    // Not focusable via keyboard
-    expect(checkmarkSvg!.getAttribute('focusable')).toBe('false');
-    // No tabindex
-    expect(checkmarkSvg!.getAttribute('tabindex')).toBeNull();
+    // Tasks should no longer be visible
+    expect(screen.queryAllByTestId('task-card')).toHaveLength(0);
   });
 
-  it('edge case - renders without crashing when completedTasks is an empty array and checkmark svg uses currentColor stroke matching the heading text color', () => {
+  it('edge case - the checkmark svg has no onClick handler, no cursor-pointer, and no interactive role', () => {
     render(
       <CompletedTasksSection
         completedTasks={[]}
@@ -98,19 +90,21 @@ describe('CompletedTasksSection', () => {
     );
 
     const heading = screen.getByRole('heading', { level: 2 });
-    const svgsInsideHeading = heading.querySelectorAll('svg');
+    const svgs = heading.querySelectorAll('svg');
+    const checkmarkSvg = Array.from(svgs).find(
+      (svg) => svg.getAttribute('aria-hidden') === 'true' && svg.getAttribute('focusable') === 'false'
+    ) as SVGElement | undefined;
 
-    const checkmarkSvg = Array.from(svgsInsideHeading).find(
-      (svg) =>
-        svg.getAttribute('aria-hidden') === 'true' &&
-        svg.getAttribute('focusable') === 'false',
-    );
-
-    expect(checkmarkSvg).toBeDefined();
-    // stroke="currentColor" ensures it inherits the heading text colour
-    expect(checkmarkSvg!.getAttribute('stroke')).toBe('currentColor');
-    // w-[1em] h-[1em] ensures it matches the text size
-    expect(checkmarkSvg!.classList.contains('w-[1em]')).toBe(true);
-    expect(checkmarkSvg!.classList.contains('h-[1em]')).toBe(true);
+    expect(checkmarkSvg).toBeTruthy();
+    // No interactive role
+    expect(checkmarkSvg!.getAttribute('role')).not.toBe('button');
+    expect(checkmarkSvg!.getAttribute('role')).not.toBe('link');
+    // No onClick handler attached directly
+    expect(checkmarkSvg!.onclick).toBeNull();
+    // Uses currentColor (same color as text) via stroke attribute
+    expect(checkmarkSvg!).toHaveAttribute('stroke', 'currentColor');
+    // Size matches text via em units
+    expect(checkmarkSvg!).toHaveClass('w-[1em]');
+    expect(checkmarkSvg!).toHaveClass('h-[1em]');
   });
 });
