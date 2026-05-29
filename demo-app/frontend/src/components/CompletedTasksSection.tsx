@@ -11,6 +11,8 @@ import {
   LABEL_CHEVRON_EXPAND_ARIA,
 } from '../utils/strings';
 
+const CHECKMARK_ARIA_HIDDEN = true;
+
 export interface CompletedTasksSectionProps {
   completedTasks: Task[];
   onComplete: (taskId: string) => void;
@@ -39,6 +41,20 @@ export function CompletedTasksSection({
     <section>
       <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
         {LABEL_COMPLETED_TASKS_HEADING}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="w-[1em] h-[1em] pointer-events-none"
+          aria-hidden={CHECKMARK_ARIA_HIDDEN}
+          focusable="false"
+        >
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
         <button
           type="button"
           onClick={handleToggle}
