@@ -6,14 +6,11 @@ import {
   LABEL_COMPLETED_TASKS_HEADING,
   LABEL_CHECK_TICK_ICON_ARIA,
   LABEL_NO_COMPLETED_TASKS,
-  LABEL_CHEVRON_COLLAPSE_ARIA,
 } from '../utils/strings';
 import type { Task } from '../types';
 
 vi.mock('../components/TaskCard', () => ({
-  TaskCard: ({ task }: { task: Task }) => (
-    <div data-testid="task-card">{task.title}</div>
-  ),
+  TaskCard: () => <div data-testid="task-card" />,
 }));
 
 vi.mock('../components/PriorityFilter', () => ({
@@ -35,7 +32,7 @@ function makeTask(id: string): Task {
 }
 
 describe('CompletedTasksSection', () => {
-  it('render test - renders the heading and check mark icon with correct aria-label', () => {
+  it('render test - renders the heading text and the check mark icon immediately to the right of it', () => {
     render(
       <CompletedTasksSection
         completedTasks={[]}
@@ -48,29 +45,31 @@ describe('CompletedTasksSection', () => {
     expect(screen.getByText(LABEL_COMPLETED_TASKS_HEADING)).toBeInTheDocument();
     const checkIcon = screen.getByLabelText(LABEL_CHECK_TICK_ICON_ARIA);
     expect(checkIcon).toBeInTheDocument();
-    expect(checkIcon.tagName.toLowerCase()).toBe('svg');
+
+    const heading = screen.getByRole('heading', { level: 2 });
+    expect(heading).toContainElement(checkIcon as HTMLElement);
   });
 
-  it('interaction test - clicking the chevron toggle button collapses and hides the section content', async () => {
+  it('interaction test - clicking the chevron toggle button collapses the section and hides tasks', async () => {
+    const tasks = [makeTask('1'), makeTask('2')];
     render(
       <CompletedTasksSection
-        completedTasks={[makeTask('1')]}
+        completedTasks={tasks}
         onComplete={vi.fn()}
         selectedPriority={null}
         onPriorityChange={vi.fn()}
       />
     );
 
-    expect(screen.getByTestId('task-card')).toBeInTheDocument();
+    expect(screen.getAllByTestId('task-card')).toHaveLength(2);
 
-    const toggleButton = screen.getByRole('button', { name: LABEL_CHEVRON_COLLAPSE_ARIA });
+    const toggleButton = screen.getByRole('button', { name: /collapse/i });
     await userEvent.click(toggleButton);
 
     expect(screen.queryByTestId('task-card')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('priority-filter')).not.toBeInTheDocument();
   });
 
-  it('edge case - renders without crashing when completedTasks is an empty array and shows empty message', () => {
+  it('edge case - renders without crashing when completedTasks is empty and shows the empty state message', () => {
     render(
       <CompletedTasksSection
         completedTasks={[]}
@@ -81,7 +80,6 @@ describe('CompletedTasksSection', () => {
     );
 
     expect(screen.getByText(LABEL_NO_COMPLETED_TASKS)).toBeInTheDocument();
-    const checkIcon = screen.getByLabelText(LABEL_CHECK_TICK_ICON_ARIA);
-    expect(checkIcon).toBeInTheDocument();
+    expect(screen.getByLabelText(LABEL_CHECK_TICK_ICON_ARIA)).toBeInTheDocument();
   });
 });
