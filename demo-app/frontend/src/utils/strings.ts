@@ -1,4 +1,5 @@
 export const APP_TITLE = 'Task Manager';
+export const APP_SUBTITLE = 'Testing teams';
 export const LABEL_TOGGLE_TO_DARK = 'Switch to dark mode';
 export const LABEL_TOGGLE_TO_LIGHT = 'Switch to light mode';
 export const LABEL_DARK_MODE = 'Dark mode';
@@ -111,5 +112,3 @@ export const LABEL_SORT_DESCENDING_ARIA = 'Sort tasks by due date descending';
 
 export const LABEL_TASK_ADDED_TOAST = 'Task added successfully';
 export const LABEL_TASK_ADDED_TOAST_ICON_ARIA = 'Green tick indicating success';
-
-S
