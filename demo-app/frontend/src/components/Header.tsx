@@ -3,6 +3,7 @@ import {
   APP_TITLE,
   LABEL_DARK_MODE,
   LABEL_LIGHT_MODE,
+  LABEL_TESTING_TEAMS,
   LABEL_TOGGLE_TO_DARK,
   LABEL_TOGGLE_TO_LIGHT,
 } from '../utils/strings';
@@ -18,10 +19,15 @@ export function Header() {
 
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm px-6 py-4 flex items-center justify-between">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-        <PaperIcon className="w-[1em] h-[1em] pointer-events-none select-none" />
-        {APP_TITLE}
-      </h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <PaperIcon className="w-[1em] h-[1em] pointer-events-none select-none" />
+          {APP_TITLE}
+        </h1>
+        <span className="text-xl font-semibold text-gray-500 dark:text-gray-400">
+          {LABEL_TESTING_TEAMS}
+        </span>
+      </div>
       <div className="flex items-center gap-2">
         <SmileyIcon className="w-[1.5rem] h-[1.5rem] pointer-events-none select-none cursor-default text-gray-700 dark:text-gray-200 flex items-center justify-center" />
         <SparkleIcon className="w-[1.5rem] h-[1.5rem] pointer-events-none select-none cursor-default text-gray-700 dark:text-gray-200" />
