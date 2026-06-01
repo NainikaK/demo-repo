@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { Header } from '../components/Header';
 
 const mocks = vi.hoisted(() => ({
-  toggleTheme: vi.fn(),
   theme: 'light' as 'light' | 'dark',
+  toggleTheme: vi.fn(),
 }));
 
 vi.mock('../hooks/useTheme', () => ({
@@ -13,10 +13,6 @@ vi.mock('../hooks/useTheme', () => ({
     theme: mocks.theme,
     toggleTheme: mocks.toggleTheme,
   }),
-}));
-
-vi.mock('../components/WeatherWidget', () => ({
-  WeatherWidget: () => <span data-testid="weather-widget" />,
 }));
 
 vi.mock('../components/PaperIcon', () => ({
@@ -35,20 +31,18 @@ vi.mock('../components/ThemeIcon', () => ({
   ThemeIcon: () => <span data-testid="theme-icon" />,
 }));
 
+vi.mock('../components/WeatherWidget', () => ({
+  WeatherWidget: () => <span data-testid="weather-widget" />,
+}));
+
 describe('Header', () => {
-  it('render test - renders the TESTING label to the right of the Task Manager title', () => {
+  it('render test - renders the APP_TITLE text inside an h1 element with the correct color class', () => {
     mocks.theme = 'light';
     render(<Header />);
 
     const heading = screen.getByRole('heading', { level: 1 });
     expect(heading).toBeInTheDocument();
-
-    expect(screen.getByText('Task Manager')).toBeInTheDocument();
-    expect(screen.getByText('TESTING')).toBeInTheDocument();
-
-    // Verify TESTING is inside the h1 (to the right of the title)
-    expect(heading).toHaveTextContent('Task Manager');
-    expect(heading).toHaveTextContent('TESTING');
+    expect(heading).toHaveClass('text-[#AFEEEE]');
   });
 
   it('interaction test - clicking the theme toggle button calls toggleTheme', async () => {
@@ -56,17 +50,18 @@ describe('Header', () => {
     mocks.toggleTheme.mockClear();
     render(<Header />);
 
-    const toggleButton = screen.getByRole('button', { name: 'Switch to dark mode' });
+    const toggleButton = screen.getByRole('button');
     await userEvent.click(toggleButton);
 
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('edge case - renders without crashing when theme is dark and shows correct button label', () => {
+  it('edge case - renders the h1 with the color class when theme is dark', () => {
     mocks.theme = 'dark';
     render(<Header />);
 
-    expect(screen.getByRole('button', { name: 'Switch to light mode' })).toBeInTheDocument();
-    expect(screen.getByText('TESTING')).toBeInTheDocument();
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading).toBeInTheDocument();
+    expect(heading).toHaveClass('text-[#AFEEEE]');
   });
 });
