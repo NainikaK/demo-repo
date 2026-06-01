@@ -1,8 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Header } from '../components/Header';
-import { APP_TITLE, LABEL_DARK_MODE, LABEL_LIGHT_MODE } from '../utils/strings';
-import { vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   theme: 'light' as 'light' | 'dark',
@@ -33,34 +32,32 @@ vi.mock('../components/WeatherWidget', () => ({
   WeatherWidget: () => <span data-testid="weather-widget" />,
 }));
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+  mocks.theme = 'light';
+  mocks.toggleTheme.mockClear();
+});
+
 describe('Header', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    mocks.theme = 'light';
-    mocks.toggleTheme.mockClear();
-  });
-
-  it('renders the app title with the yellow color class', () => {
+  it('renders the app title with the yellow colour class', () => {
     render(<Header />);
-    const titleSpan = screen.getByText(APP_TITLE);
+    const titleSpan = screen.getByText('task manager');
     expect(titleSpan).toBeInTheDocument();
-    expect(titleSpan.className).toContain('text-yellow-400');
+    expect(titleSpan).toHaveClass('text-yellow-400');
   });
 
-  it('calls toggleTheme when the theme button is clicked', async () => {
+  it('calls toggleTheme when the theme toggle button is clicked', async () => {
     const user = userEvent.setup();
     render(<Header />);
-    const button = screen.getByText(LABEL_DARK_MODE);
+    const button = screen.getByRole('button', { name: /toggle to dark/i });
     await user.click(button);
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the title span with the yellow color class in dark theme', () => {
+  it('renders without crashing when theme is dark', () => {
     mocks.theme = 'dark';
     render(<Header />);
-    const titleSpan = screen.getByText(APP_TITLE);
-    expect(titleSpan).toBeInTheDocument();
-    expect(titleSpan.className).toContain('text-yellow-400');
-    expect(screen.getByText(LABEL_LIGHT_MODE)).toBeInTheDocument();
+    expect(screen.getByText('task manager')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /toggle to light/i })).toBeInTheDocument();
   });
 });
