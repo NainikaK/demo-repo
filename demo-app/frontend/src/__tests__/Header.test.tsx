@@ -40,11 +40,11 @@ describe('Header', () => {
     mocks.toggleTheme.mockClear();
   });
 
-  it('renders the app title with the color class [color:#AFEEEE]', () => {
+  it('renders the app title with the yellow color class', () => {
     render(<Header />);
     const titleSpan = screen.getByText(APP_TITLE);
     expect(titleSpan).toBeInTheDocument();
-    expect(titleSpan.className).toContain('[color:#AFEEEE]');
+    expect(titleSpan.className).toContain('text-yellow-400');
   });
 
   it('calls toggleTheme when the theme button is clicked', async () => {
@@ -55,12 +55,12 @@ describe('Header', () => {
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the title span with the correct color class in dark theme', () => {
+  it('renders the title span with the yellow color class in dark theme', () => {
     mocks.theme = 'dark';
     render(<Header />);
     const titleSpan = screen.getByText(APP_TITLE);
     expect(titleSpan).toBeInTheDocument();
-    expect(titleSpan.className).toContain('[color:#AFEEEE]');
+    expect(titleSpan.className).toContain('text-yellow-400');
     expect(screen.getByText(LABEL_LIGHT_MODE)).toBeInTheDocument();
   });
 });
