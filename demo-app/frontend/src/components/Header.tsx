@@ -12,7 +12,7 @@ import { SparkleIcon } from './SparkleIcon';
 import { ThemeIcon } from './ThemeIcon';
 import { WeatherWidget } from './WeatherWidget';
 
-const TITLE_COLOR_CLASS = '[color:#AFEEEE]';
+const TITLE_COLOR_CLASS = 'text-yellow-400';
 
 export function Header() {
   const { theme, toggleTheme } = useTheme();
