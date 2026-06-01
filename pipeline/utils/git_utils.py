@@ -216,6 +216,39 @@ def get_file_diff(branch_name: str) -> str:
     )
 
 
+def stash_uncommitted_changes() -> bool:
+    """Stash any uncommitted changes in the working directory.
+
+    Returns True if a stash entry was created, False if the working tree was clean.
+
+    Raises:
+        RuntimeError: If the git stash command fails.
+    """
+    repo_root = get_repo_root()
+    result = run_git(["stash", "push", "--include-untracked", "-m", "supervisor-pre-rebase"], cwd=repo_root)
+    return "No local changes to save" not in result
+
+
+def stash_pop() -> None:
+    """Re-apply the most recent stash entry.
+
+    Raises:
+        RuntimeError: If the git stash pop command fails.
+    """
+    repo_root = get_repo_root()
+    run_git(["stash", "pop"], cwd=repo_root)
+
+
+def stash_drop() -> None:
+    """Drop the most recent stash entry without applying it.
+
+    Raises:
+        RuntimeError: If the git stash drop command fails.
+    """
+    repo_root = get_repo_root()
+    run_git(["stash", "drop"], cwd=repo_root)
+
+
 def rebase_onto_main(branch_name: str) -> None:
     """Rebase a feature branch onto the latest origin/main and force-push it.
 

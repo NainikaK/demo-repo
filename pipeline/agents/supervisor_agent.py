@@ -87,12 +87,19 @@ def run(
 
     if audit_report.merge_recommendation == MergeRecommendation.approve:
         print(f"{_LOG_PREFIX} rebasing {branch_name!r} onto {_BASE_BRANCH} before merge")
+        stashed = git_utils.stash_uncommitted_changes()
+        if stashed:
+            print(f"{_LOG_PREFIX} stashed uncommitted changes before rebase")
         try:
             git_utils.rebase_onto_main(branch_name)
         except RuntimeError as exc:
+            if stashed:
+                git_utils.stash_drop()
             raise RuntimeError(
                 f"Supervisor Agent: pre-merge rebase failed — {exc}"
             ) from exc
+        if stashed:
+            git_utils.stash_pop()
 
         print(f"{_LOG_PREFIX} auto-merging PR #{pr.number}")
         _merge_with_retry(pr, pr_description)
