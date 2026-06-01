@@ -20,7 +20,7 @@ export function Header() {
     <header className="bg-white dark:bg-gray-800 shadow-sm px-6 py-4 flex items-center justify-between">
       <h1 className="text-xl font-semibold flex items-center gap-2">
         <PaperIcon className="w-[1em] h-[1em] pointer-events-none select-none" />
-        <span className="text-indigo-600 dark:text-indigo-400">{APP_TITLE}</span>
+        <span className="text-emerald-600 dark:text-emerald-400">{APP_TITLE}</span>
       </h1>
       <div className="flex items-center gap-2">
         <SmileyIcon className="w-[1.5rem] h-[1.5rem] pointer-events-none select-none cursor-default text-gray-700 dark:text-gray-200 flex items-center justify-center" />
