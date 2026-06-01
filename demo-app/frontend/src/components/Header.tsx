@@ -18,7 +18,9 @@ export function Header() {
 
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm px-6 py-4 flex items-center justify-between">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+      <h1
+        className="text-xl font-semibold flex items-center gap-2 text-[#AFEEEE]"
+      >
         <PaperIcon className="w-[1em] h-[1em] pointer-events-none select-none" />
         {APP_TITLE}
       </h1>
