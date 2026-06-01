@@ -135,7 +135,12 @@ def run(
                 print(f"{_LOG_PREFIX} deleted stale backend test: {test_file.name}")
 
     print(f"{_LOG_PREFIX} reading existing test files")
-    existing_tests = _read_existing_tests()
+    all_changed = (
+        frontend_summary.files_created + frontend_summary.files_modified
+        + backend_summary.files_created + backend_summary.files_modified
+    )
+    source_files_for_filter = {p: "" for p in all_changed}
+    existing_tests = _read_existing_tests(source_files=source_files_for_filter)
 
     system_prompt = _load_system_prompt()
     user_message = _build_test_gen_message(
@@ -871,16 +876,27 @@ def _make_slug(title: str) -> str:
     return slug[:_MAX_SLUG_LENGTH].rstrip("-")
 
 
-def _read_existing_tests() -> dict[str, str]:
-    """Read all existing test files from both frontend and backend test directories."""
+def _read_existing_tests(source_files: dict[str, str] | None = None) -> dict[str, str]:
+    """Read existing test files from both test directories.
+
+    When source_files is provided, only returns test files whose base stem
+    (the filename part before '.test') matches a stem from the source_files keys.
+    For example, if source_files contains 'Header.tsx', only 'Header.test.tsx' is
+    included — 'getWeatherIcon.test.ts' is excluded.
+    """
     repo_root = git_utils.get_repo_root()
     existing: dict[str, str] = {}
+    source_stems = (
+        {Path(k).stem for k in source_files} if source_files is not None else None
+    )
     for test_dir_rel in (_FRONTEND_TEST_DIR, _BACKEND_TEST_ROOT):
         test_dir = repo_root / test_dir_rel
         if not test_dir.exists():
             continue
         for file_path in sorted(test_dir.rglob("*")):
             if file_path.is_file() and file_path.suffix in _TEST_FILE_EXTENSIONS:
+                if source_stems is not None and file_path.name.split(".")[0] not in source_stems:
+                    continue
                 rel = str(file_path.relative_to(repo_root))
                 try:
                     existing[rel] = file_path.read_text(encoding="utf-8")
