@@ -40,11 +40,17 @@ afterEach(() => {
 });
 
 describe('Header', () => {
-  it('renders the app title with the orange colour class', () => {
+  it('renders the app title with the pink colour class', () => {
     render(<Header />);
     const titleSpan = screen.getByText(APP_TITLE);
     expect(titleSpan).toBeDefined();
-    expect(titleSpan.className).toContain('text-orange-500');
+    expect(titleSpan.className).toContain('text-pink-500');
+  });
+
+  it('does not apply orange colour class to the app title', () => {
+    render(<Header />);
+    const titleSpan = screen.getByText(APP_TITLE);
+    expect(titleSpan.className).not.toContain('text-orange-500');
   });
 
   it('calls toggleTheme when the theme toggle button is clicked', async () => {
