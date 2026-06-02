@@ -39,11 +39,20 @@ afterEach(() => {
 });
 
 describe('Header', () => {
-  it('renders the app title with the yellow colour class', () => {
+  it('renders the app title with the orange colour class', () => {
     render(<Header />);
     const titleSpan = screen.getByText('task manager');
     expect(titleSpan).toBeInTheDocument();
-    expect(titleSpan).toHaveClass('text-yellow-400');
+    expect(titleSpan).toHaveClass('text-orange-500');
+  });
+
+  it('does not apply the orange colour class to any other header element', () => {
+    render(<Header />);
+    const titleSpan = screen.getByText('task manager');
+    const orangeElements = document
+      .querySelectorAll('.text-orange-500');
+    expect(orangeElements).toHaveLength(1);
+    expect(orangeElements[0]).toBe(titleSpan);
   });
 
   it('calls toggleTheme when the theme toggle button is clicked', async () => {
