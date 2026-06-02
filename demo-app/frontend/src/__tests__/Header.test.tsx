@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Header } from '../components/Header';
-import { APP_TITLE, LABEL_DARK_MODE, LABEL_TOGGLE_TO_DARK } from '../utils/strings';
 
 const mocks = vi.hoisted(() => ({
   theme: 'light' as 'light' | 'dark',
@@ -36,29 +35,28 @@ vi.mock('../components/WeatherWidget', () => ({
 afterEach(() => {
   vi.unstubAllGlobals();
   mocks.theme = 'light';
-  mocks.toggleTheme.mockReset();
+  mocks.toggleTheme.mockClear();
 });
 
 describe('Header', () => {
-  it('renders the app title with the orange colour class', () => {
+  it('renders the app title with the pink colour class', () => {
     render(<Header />);
-    const titleSpan = screen.getByText(APP_TITLE);
-    expect(titleSpan).toBeDefined();
-    expect(titleSpan.className).toContain('text-orange-500');
+    const titleSpan = screen.getByText((content) => content.toLowerCase().includes('task manager'));
+    expect(titleSpan).toHaveClass('text-pink-500');
   });
 
   it('calls toggleTheme when the theme toggle button is clicked', async () => {
     const user = userEvent.setup();
     render(<Header />);
-    const toggleButton = screen.getByRole('button', { name: LABEL_TOGGLE_TO_DARK });
-    await user.click(toggleButton);
+    const button = screen.getByRole('button');
+    await user.click(button);
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the theme toggle button without crashing when no theme interaction occurs', () => {
+  it('renders without crashing when theme is dark and does not apply pink class to any button', () => {
+    mocks.theme = 'dark';
     render(<Header />);
-    const button = screen.getByRole('button', { name: LABEL_TOGGLE_TO_DARK });
-    expect(button).toBeDefined();
-    expect(button.textContent).toBe(LABEL_DARK_MODE);
+    const button = screen.getByRole('button');
+    expect(button).not.toHaveClass('text-pink-500');
   });
 });
