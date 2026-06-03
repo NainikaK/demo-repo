@@ -1,11 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Header } from '../components/Header';
 
 const mocks = vi.hoisted(() => ({
-  theme: 'light' as 'light' | 'dark',
   toggleTheme: vi.fn(),
+  theme: 'light' as 'light' | 'dark',
 }));
 
 vi.mock('../hooks/useTheme', () => ({
@@ -32,14 +31,14 @@ vi.mock('../components/WeatherWidget', () => ({
   WeatherWidget: () => <span data-testid="weather-widget" />,
 }));
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  mocks.theme = 'light';
-  mocks.toggleTheme.mockReset();
-});
-
 describe('Header', () => {
-  it('renders the app title with the text-yellow-200 CSS class', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    mocks.theme = 'light';
+    mocks.toggleTheme.mockReset();
+  });
+
+  it('renders the APP_TITLE text wrapped in the light yellow colour class', () => {
     render(<Header />);
     const titleSpan = screen.getByText('Task Manager');
     expect(titleSpan).toBeInTheDocument();
@@ -49,16 +48,17 @@ describe('Header', () => {
   it('calls toggleTheme when the theme toggle button is clicked', async () => {
     const user = userEvent.setup();
     render(<Header />);
-    const toggleButton = screen.getByRole('button');
+    const toggleButton = screen.getByRole('button', { name: /switch to dark mode/i });
     await user.click(toggleButton);
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('renders correctly in dark theme without crashing and title still has text-yellow-200 class', () => {
+  it('renders without crashing when theme is dark and does not apply yellow class to any element other than the title span', () => {
     mocks.theme = 'dark';
     render(<Header />);
     const titleSpan = screen.getByText('Task Manager');
-    expect(titleSpan).toBeInTheDocument();
     expect(titleSpan).toHaveClass('text-yellow-200');
+    const toggleButton = screen.getByRole('button', { name: /switch to light mode/i });
+    expect(toggleButton).not.toHaveClass('text-yellow-200');
   });
 });
