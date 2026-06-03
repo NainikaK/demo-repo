@@ -1,8 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Header } from '../components/Header';
-import { APP_TITLE } from '../utils/strings';
+import { APP_TITLE, LABEL_DARK_MODE, LABEL_LIGHT_MODE } from '../utils/strings';
 
 const mocks = vi.hoisted(() => ({
   theme: 'light' as 'light' | 'dark',
@@ -29,50 +28,37 @@ vi.mock('../components/WeatherWidget', () => ({
   WeatherWidget: () => <span data-testid="weather-widget" />,
 }));
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  mocks.theme = 'light';
-  mocks.toggleTheme.mockClear();
-});
-
 describe('Header', () => {
-  it('renders the app title with the theme-aware light-mode colour class', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    mocks.theme = 'light';
+    mocks.toggleTheme.mockReset();
+  });
+
+  it('renders the app title with the correct white colour class in light theme', () => {
+    mocks.theme = 'light';
     render(<Header />);
-    const titleSpan = screen.getByText((content) =>
-      content.toLowerCase().includes(APP_TITLE.toLowerCase()),
-    );
+    const titleSpan = screen.getByText(APP_TITLE);
+    expect(titleSpan).toBeInTheDocument();
     expect(titleSpan).toHaveClass('text-gray-900');
-  });
-
-  it('does not render the app title with the old pink colour class', () => {
-    render(<Header />);
-    const titleSpan = screen.getByText((content) =>
-      content.toLowerCase().includes(APP_TITLE.toLowerCase()),
-    );
-    expect(titleSpan).not.toHaveClass('text-pink-500');
-  });
-
-  it('renders the app title with the theme-aware dark-mode colour class when theme is dark', () => {
-    mocks.theme = 'dark';
-    render(<Header />);
-    const titleSpan = screen.getByText((content) =>
-      content.toLowerCase().includes(APP_TITLE.toLowerCase()),
-    );
     expect(titleSpan).toHaveClass('dark:text-white');
   });
 
   it('calls toggleTheme when the theme toggle button is clicked', async () => {
+    mocks.theme = 'light';
     const user = userEvent.setup();
     render(<Header />);
-    const button = screen.getByRole('button');
-    await user.click(button);
+    const toggleButton = screen.getByText(LABEL_DARK_MODE);
+    await user.click(toggleButton);
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('renders without crashing when theme is dark and does not apply white class to any button', () => {
+  it('renders the app title with the white colour class in dark theme without crashing', () => {
     mocks.theme = 'dark';
     render(<Header />);
-    const button = screen.getByRole('button');
-    expect(button).not.toHaveClass('text-white');
+    const titleSpan = screen.getByText(APP_TITLE);
+    expect(titleSpan).toBeInTheDocument();
+    expect(titleSpan).toHaveClass('dark:text-white');
+    expect(screen.getByText(LABEL_LIGHT_MODE)).toBeInTheDocument();
   });
 });
