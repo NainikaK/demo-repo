@@ -1,4 +1,4 @@
-export const APP_TITLE = 'task manager';
+export const APP_TITLE = 'Task Manager';
 export const LABEL_TOGGLE_TO_DARK = 'Switch to dark mode';
 export const LABEL_TOGGLE_TO_LIGHT = 'Switch to light mode';
 export const LABEL_DARK_MODE = 'Dark mode';

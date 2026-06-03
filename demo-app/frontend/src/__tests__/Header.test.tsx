@@ -39,11 +39,11 @@ afterEach(() => {
 });
 
 describe('Header', () => {
-  it('renders the app title with the text-white CSS class', () => {
+  it('renders the app title with the text-yellow-200 CSS class', () => {
     render(<Header />);
     const titleSpan = screen.getByText('Task Manager');
     expect(titleSpan).toBeInTheDocument();
-    expect(titleSpan).toHaveClass('text-white');
+    expect(titleSpan).toHaveClass('text-yellow-200');
   });
 
   it('calls toggleTheme when the theme toggle button is clicked', async () => {
@@ -54,11 +54,11 @@ describe('Header', () => {
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('renders correctly in dark theme without crashing and title still has text-white class', () => {
+  it('renders correctly in dark theme without crashing and title still has text-yellow-200 class', () => {
     mocks.theme = 'dark';
     render(<Header />);
     const titleSpan = screen.getByText('Task Manager');
     expect(titleSpan).toBeInTheDocument();
-    expect(titleSpan).toHaveClass('text-white');
+    expect(titleSpan).toHaveClass('text-yellow-200');
   });
 });
