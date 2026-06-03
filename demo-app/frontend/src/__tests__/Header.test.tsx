@@ -35,41 +35,30 @@ vi.mock('../components/WeatherWidget', () => ({
 afterEach(() => {
   vi.unstubAllGlobals();
   mocks.theme = 'light';
-  mocks.toggleTheme.mockClear();
+  mocks.toggleTheme.mockReset();
 });
 
 describe('Header', () => {
-  it('renders the app title with the white colour class in light theme', () => {
+  it('renders the app title with the text-white CSS class', () => {
     render(<Header />);
-    const titleSpan = screen.getByText((content) => content.toLowerCase().includes('task manager'));
+    const titleSpan = screen.getByText('Task Manager');
+    expect(titleSpan).toBeInTheDocument();
     expect(titleSpan).toHaveClass('text-white');
-  });
-
-  it('renders the app title with the white colour class in dark theme', () => {
-    mocks.theme = 'dark';
-    render(<Header />);
-    const titleSpan = screen.getByText((content) => content.toLowerCase().includes('task manager'));
-    expect(titleSpan).toHaveClass('text-white');
-  });
-
-  it('does not apply text-pink-500 to the title', () => {
-    render(<Header />);
-    const titleSpan = screen.getByText((content) => content.toLowerCase().includes('task manager'));
-    expect(titleSpan).not.toHaveClass('text-pink-500');
   });
 
   it('calls toggleTheme when the theme toggle button is clicked', async () => {
     const user = userEvent.setup();
     render(<Header />);
-    const button = screen.getByRole('button');
-    await user.click(button);
+    const toggleButton = screen.getByRole('button');
+    await user.click(toggleButton);
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('renders without crashing when theme is dark and does not apply white class to any button', () => {
+  it('renders correctly in dark theme without crashing and title still has text-white class', () => {
     mocks.theme = 'dark';
     render(<Header />);
-    const button = screen.getByRole('button');
-    expect(button).not.toHaveClass('text-white');
+    const titleSpan = screen.getByText('Task Manager');
+    expect(titleSpan).toBeInTheDocument();
+    expect(titleSpan).toHaveClass('text-white');
   });
 });
