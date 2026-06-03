@@ -55,6 +55,8 @@ Are the tests sufficient, correct, and meaningful?
 
 Check for: one happy-path + one failure/edge-case test per new/modified function; one test per HTTP status code per endpoint; three tests per new React component (render, interaction, edge case); one test per Gherkin scenario using the `Scenario_<Title>_<Outcome>` naming pattern; line coverage ≥70% on changed files; no tests that depend on real network calls without mocking; deterministic tests only.
 
+**Coverage collection caveat:** If `coverage_percent` is `0.0` AND the test report shows tests passed (not failed), treat coverage as "not collected" rather than "zero coverage" — do not apply the <50% blocking finding. Score based on test quality and count only, not on the `0.0%` figure. Only apply coverage thresholds when `coverage_percent > 0.0`.
+
 ### 4. security (weight 20%, max 2.0 pts)
 
 Are there any security vulnerabilities in the changed code?
