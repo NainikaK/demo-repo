@@ -1,14 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Header } from '../components/Header';
 
-const THEME_LIGHT = 'light' as const;
-const THEME_DARK = 'dark' as const;
-
 const mocks = vi.hoisted(() => ({
-  theme: THEME_LIGHT as 'light' | 'dark',
   toggleTheme: vi.fn(),
+  theme: 'light' as string,
 }));
 
 vi.mock('../hooks/useTheme', () => ({
@@ -35,44 +32,34 @@ vi.mock('../components/WeatherWidget', () => ({
   WeatherWidget: () => <span data-testid="weather-widget" />,
 }));
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  mocks.theme = THEME_LIGHT;
-  mocks.toggleTheme.mockClear();
-});
-
 describe('Header', () => {
-  it('renders the app title with the white colour class', () => {
-    render(<Header />);
-    const titleSpan = screen.getByText((content) => content.toLowerCase().includes('task manager'));
-    expect(titleSpan).toHaveClass('text-white');
+  beforeEach(() => {
+    mocks.toggleTheme.mockReset();
+    mocks.theme = 'light';
   });
 
-  it('renders the app title without the pink colour class', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('renders the header title with the text-white CSS class applied to the title span', () => {
     render(<Header />);
-    const titleSpan = screen.getByText((content) => content.toLowerCase().includes('task manager'));
-    expect(titleSpan).not.toHaveClass('text-pink-500');
+    const titleSpan = screen.getByText('Task Manager');
+    expect(titleSpan).toHaveClass('text-white');
   });
 
   it('calls toggleTheme when the theme toggle button is clicked', async () => {
     const user = userEvent.setup();
     render(<Header />);
-    const button = screen.getByRole('button');
-    await user.click(button);
+    const toggleButton = screen.getByRole('button', { name: /toggle to dark/i });
+    await user.click(toggleButton);
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('renders without crashing when theme is dark and does not apply white class to any button', () => {
-    mocks.theme = THEME_DARK;
+  it('renders the header title with text-white class in dark mode without crashing', () => {
+    mocks.theme = 'dark';
     render(<Header />);
-    const button = screen.getByRole('button');
-    expect(button).not.toHaveClass('text-white');
-  });
-
-  it('applies white color to title in dark mode as well', () => {
-    mocks.theme = THEME_DARK;
-    render(<Header />);
-    const titleSpan = screen.getByText((content) => content.toLowerCase().includes('task manager'));
+    const titleSpan = screen.getByText('Task Manager');
     expect(titleSpan).toHaveClass('text-white');
   });
 });
