@@ -39,10 +39,23 @@ afterEach(() => {
 });
 
 describe('Header', () => {
-  it('renders the app title with the pink colour class', () => {
+  it('renders the app title with the white colour class in light theme', () => {
     render(<Header />);
     const titleSpan = screen.getByText((content) => content.toLowerCase().includes('task manager'));
-    expect(titleSpan).toHaveClass('text-pink-500');
+    expect(titleSpan).toHaveClass('text-white');
+  });
+
+  it('renders the app title with the white colour class in dark theme', () => {
+    mocks.theme = 'dark';
+    render(<Header />);
+    const titleSpan = screen.getByText((content) => content.toLowerCase().includes('task manager'));
+    expect(titleSpan).toHaveClass('text-white');
+  });
+
+  it('does not apply text-pink-500 to the title', () => {
+    render(<Header />);
+    const titleSpan = screen.getByText((content) => content.toLowerCase().includes('task manager'));
+    expect(titleSpan).not.toHaveClass('text-pink-500');
   });
 
   it('calls toggleTheme when the theme toggle button is clicked', async () => {
@@ -53,10 +66,10 @@ describe('Header', () => {
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('renders without crashing when theme is dark and does not apply pink class to any button', () => {
+  it('renders without crashing when theme is dark and does not apply white class to any button', () => {
     mocks.theme = 'dark';
     render(<Header />);
     const button = screen.getByRole('button');
-    expect(button).not.toHaveClass('text-pink-500');
+    expect(button).not.toHaveClass('text-white');
   });
 });
