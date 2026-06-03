@@ -12,11 +12,12 @@ import { SparkleIcon } from './SparkleIcon';
 import { ThemeIcon } from './ThemeIcon';
 import { WeatherWidget } from './WeatherWidget';
 
-const TITLE_COLOR_CLASS = 'text-pink-500';
+const TITLE_COLOR_CLASS = 'text-white';
+const THEME_DARK = 'dark';
 
 export function Header() {
   const { theme, toggleTheme } = useTheme();
-  const isDark = theme === 'dark';
+  const isDark = theme === THEME_DARK;
 
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm px-6 py-4 flex items-center justify-between">
