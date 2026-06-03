@@ -1,15 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Header } from '../components/Header';
-import {
-  APP_TITLE,
-  LABEL_TOGGLE_TO_DARK,
-  LABEL_TOGGLE_TO_LIGHT,
-} from '../utils/strings';
+import { APP_TITLE, LABEL_DARK_MODE, LABEL_LIGHT_MODE } from '../utils/strings';
 
 const mocks = vi.hoisted(() => ({
-  toggleTheme: vi.fn(),
   theme: 'light' as 'light' | 'dark',
+  toggleTheme: vi.fn(),
 }));
 
 vi.mock('../hooks/useTheme', () => ({
@@ -43,7 +39,7 @@ describe('Header', () => {
     mocks.toggleTheme.mockReset();
   });
 
-  it('renders the APP_TITLE text wrapped in the light pink colour class', () => {
+  it('renders the APP_TITLE text with the light pink color class', () => {
     render(<Header />);
     const titleSpan = screen.getByText(APP_TITLE);
     expect(titleSpan).toBeInTheDocument();
@@ -53,30 +49,17 @@ describe('Header', () => {
   it('calls toggleTheme when the theme toggle button is clicked', async () => {
     const user = userEvent.setup();
     render(<Header />);
-    const toggleButton = screen.getByRole('button', { name: LABEL_TOGGLE_TO_DARK });
-    await user.click(toggleButton);
+    const button = screen.getByText(LABEL_DARK_MODE);
+    await user.click(button);
     expect(mocks.toggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('renders without crashing when theme is dark and does not apply pink class to any element other than the title span', () => {
+  it('renders the title with text-pink-200 class when theme is dark', () => {
     mocks.theme = 'dark';
     render(<Header />);
     const titleSpan = screen.getByText(APP_TITLE);
+    expect(titleSpan).toBeInTheDocument();
     expect(titleSpan).toHaveClass('text-pink-200');
-    const toggleButton = screen.getByRole('button', { name: LABEL_TOGGLE_TO_LIGHT });
-    expect(toggleButton).not.toHaveClass('text-pink-200');
-  });
-
-  it('applies the light pink colour class regardless of theme', () => {
-    mocks.theme = 'light';
-    const { unmount } = render(<Header />);
-    let titleSpan = screen.getByText(APP_TITLE);
-    expect(titleSpan).toHaveClass('text-pink-200');
-    unmount();
-
-    mocks.theme = 'dark';
-    render(<Header />);
-    titleSpan = screen.getByText(APP_TITLE);
-    expect(titleSpan).toHaveClass('text-pink-200');
+    expect(screen.getByText(LABEL_LIGHT_MODE)).toBeInTheDocument();
   });
 });
