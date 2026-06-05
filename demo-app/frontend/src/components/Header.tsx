@@ -19,7 +19,7 @@ export function Header() {
   const isDark = theme === 'dark';
 
   return (
-    <header className="bg-white dark:bg-gray-800 shadow-sm px-6 py-4 flex items-center justify-between">
+    <header className="bg-slate-700 shadow-sm px-6 py-4 flex items-center justify-between">
       <h1 className="text-xl font-semibold flex items-center gap-2">
         <PaperIcon className="w-[1em] h-[1em] pointer-events-none select-none" />
         <span className={TITLE_COLOR_CLASS}>{APP_TITLE}</span>
