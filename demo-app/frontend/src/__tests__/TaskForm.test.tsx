@@ -13,6 +13,9 @@ vi.mock('../hooks/useCreateTask', () => ({
 
 import * as createTaskModule from '../hooks/useCreateTask';
 
+const TITLE_MAX_LENGTH = 100;
+const TITLE_WARN_LENGTH = 80;
+
 describe('TaskForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -61,5 +64,42 @@ describe('TaskForm', () => {
 
     expect(screen.getByRole('alert')).toBeInTheDocument();
     expect(screen.getByText('Title is required.')).toBeInTheDocument();
+  });
+
+  it('character counter - displays 0/100 when title is empty', () => {
+    render(<TaskForm onTaskCreated={vi.fn()} />);
+
+    expect(screen.getByText(`0/${TITLE_MAX_LENGTH}`)).toBeInTheDocument();
+  });
+
+  it('character counter - updates count on every keystroke', async () => {
+    render(<TaskForm onTaskCreated={vi.fn()} />);
+
+    const titleInput = screen.getByLabelText(/Title/i);
+    await userEvent.type(titleInput, 'Hello');
+
+    expect(screen.getByText(`5/${TITLE_MAX_LENGTH}`)).toBeInTheDocument();
+  });
+
+  it('character counter - text is not red when count is 80 or below', async () => {
+    render(<TaskForm onTaskCreated={vi.fn()} />);
+
+    const titleInput = screen.getByLabelText(/Title/i);
+    const eightyChars = 'a'.repeat(TITLE_WARN_LENGTH);
+    await userEvent.type(titleInput, eightyChars);
+
+    const counter = screen.getByText(`${TITLE_WARN_LENGTH}/${TITLE_MAX_LENGTH}`);
+    expect(counter).not.toHaveClass('text-red-600');
+  });
+
+  it('character counter - text turns red when count exceeds 80 characters', async () => {
+    render(<TaskForm onTaskCreated={vi.fn()} />);
+
+    const titleInput = screen.getByLabelText(/Title/i);
+    const eightyOneChars = 'a'.repeat(TITLE_WARN_LENGTH + 1);
+    await userEvent.type(titleInput, eightyOneChars);
+
+    const counter = screen.getByText(`${TITLE_WARN_LENGTH + 1}/${TITLE_MAX_LENGTH}`);
+    expect(counter).toHaveClass('text-red-600');
   });
 });
