@@ -162,19 +162,19 @@ def run(
 
     print(f"{_LOG_PREFIX} running frontend test suite")
     _fe_result = _run_frontend_tests()
-    frontend_cases = _correct_frontend_tests(_fe_result[0], frontend_summary, anthropic_client, branch_name)
+    frontend_cases, corrected_fe_cov = _correct_frontend_tests(_fe_result[0], frontend_summary, anthropic_client, branch_name)
 
     print(f"{_LOG_PREFIX} running backend test suite")
     _be_result = _run_backend_tests(backend_summary)
-    backend_cases = _correct_backend_tests(_be_result[0], backend_summary, anthropic_client, branch_name)
+    backend_cases, corrected_be_cov = _correct_backend_tests(_be_result[0], backend_summary, anthropic_client, branch_name)
 
     results = _aggregate_results(
         work_item_id,
         frontend_cases,
         backend_cases,
         written_files,
-        frontend_coverage=(_fe_result[1], _fe_result[2]),
-        backend_coverage=(_be_result[1], _be_result[2]),
+        frontend_coverage=corrected_fe_cov if corrected_fe_cov[1] else (_fe_result[1], _fe_result[2]),
+        backend_coverage=corrected_be_cov if corrected_be_cov[1] else (_be_result[1], _be_result[2]),
     )
     print(
         f"{_LOG_PREFIX} complete "
@@ -461,9 +461,10 @@ def _correct_frontend_tests(
     frontend_summary: ChangeSummary,
     anthropic_client: anthropic.Anthropic,
     branch_name: str,
-) -> list[TestCase]:
+) -> tuple[list[TestCase], tuple[float, dict[str, float]]]:
     """Fix failing frontend tests one file at a time, up to _CORRECTION_MAX_ATTEMPTS rounds."""
     best = cases
+    best_coverage: tuple[float, dict[str, float]] = (0.0, {})
     source_files = _read_files_from_paths(
         frontend_summary.files_modified + frontend_summary.files_created + _FRONTEND_UTILITY_FILES
     )
@@ -581,14 +582,15 @@ def _correct_frontend_tests(
             break
 
         git_utils.push_branch(branch_name)
-        new_cases, _, _ = _run_frontend_tests()
+        new_cases, new_fe_pct, new_fe_files = _run_frontend_tests()
         new_failed = sum(1 for c in new_cases if c.status == TestStatus.failed)
         if new_failed < len(failed):
             best = new_cases
+            best_coverage = (new_fe_pct, new_fe_files)
         if new_failed == 0:
             break
 
-    return best
+    return best, best_coverage
 
 
 def _correct_backend_tests(
@@ -596,9 +598,10 @@ def _correct_backend_tests(
     backend_summary: ChangeSummary,
     anthropic_client: anthropic.Anthropic,
     branch_name: str,
-) -> list[TestCase]:
+) -> tuple[list[TestCase], tuple[float, dict[str, float]]]:
     """Fix failing backend tests one file at a time, up to _CORRECTION_MAX_ATTEMPTS rounds."""
     best = cases
+    best_coverage: tuple[float, dict[str, float]] = (0.0, {})
     source_files = _read_files_from_paths(
         backend_summary.files_modified + backend_summary.files_created
     )
@@ -681,14 +684,15 @@ def _correct_backend_tests(
             break
 
         git_utils.push_branch(branch_name)
-        new_cases, _, _ = _run_backend_tests(backend_summary)
+        new_cases, new_be_pct, new_be_files = _run_backend_tests(backend_summary)
         new_failed = sum(1 for c in new_cases if c.status == TestStatus.failed)
         if new_failed < len(failed):
             best = new_cases
+            best_coverage = (new_be_pct, new_be_files)
         if new_failed == 0:
             break
 
-    return best
+    return best, best_coverage
 
 
 def _find_describe_block_end(content: str, start: int) -> int:
