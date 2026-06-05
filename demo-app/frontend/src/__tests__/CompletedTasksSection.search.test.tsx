@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CompletedTasksSection } from '../components/CompletedTasksSection';
 import type { Task } from '../types';
+import { vi } from 'vitest';
 
 const completedTasks: Task[] = [
   {
@@ -29,9 +30,9 @@ const completedTasks: Task[] = [
 
 const defaultProps = {
   completedTasks,
-  onComplete: jest.fn(),
-  selectedPriority: null,
-  onPriorityChange: jest.fn(),
+  onComplete: vi.fn(),
+  selectedPriority: null as null,
+  onPriorityChange: vi.fn(),
 };
 
 describe('CompletedTasksSection search bar', () => {

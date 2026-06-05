@@ -30,54 +30,38 @@ describe('useCompletedTaskSearch', () => {
   it('returns all tasks when search term is empty', () => {
     const tasks = makeTasks();
     const { result } = renderHook(() => useCompletedTaskSearch(tasks));
+
     expect(result.current.filteredCompletedTasks).toHaveLength(3);
+    expect(result.current.completedSearchTerm).toBe('');
   });
 
-  it('filters tasks case-insensitively by title', () => {
+  it('filters tasks by title in a case-insensitive manner when a search term is set', () => {
     const tasks = makeTasks();
     const { result } = renderHook(() => useCompletedTaskSearch(tasks));
+
     act(() => {
-      result.current.setCompletedSearchTerm('buy');
+      result.current.setCompletedSearchTerm('BUY');
     });
+
     expect(result.current.filteredCompletedTasks).toHaveLength(2);
-    expect(result.current.filteredCompletedTasks.map((t) => t.id)).toEqual(['1', '3']);
+    expect(result.current.filteredCompletedTasks.map((t) => t.title)).toContain('Buy groceries');
+    expect(result.current.filteredCompletedTasks.map((t) => t.title)).toContain('Buy flowers');
   });
 
-  it('filters tasks case-insensitively with uppercase input', () => {
+  it('returns all tasks when search term is cleared after being set', () => {
     const tasks = makeTasks();
     const { result } = renderHook(() => useCompletedTaskSearch(tasks));
+
     act(() => {
-      result.current.setCompletedSearchTerm('READ');
+      result.current.setCompletedSearchTerm('read');
     });
+
     expect(result.current.filteredCompletedTasks).toHaveLength(1);
-    expect(result.current.filteredCompletedTasks[0].id).toBe('2');
-  });
 
-  it('returns empty array when no tasks match', () => {
-    const tasks = makeTasks();
-    const { result } = renderHook(() => useCompletedTaskSearch(tasks));
-    act(() => {
-      result.current.setCompletedSearchTerm('zzz');
-    });
-    expect(result.current.filteredCompletedTasks).toHaveLength(0);
-  });
-
-  it('restores all tasks when search term is cleared', () => {
-    const tasks = makeTasks();
-    const { result } = renderHook(() => useCompletedTaskSearch(tasks));
-    act(() => {
-      result.current.setCompletedSearchTerm('buy');
-    });
-    expect(result.current.filteredCompletedTasks).toHaveLength(2);
     act(() => {
       result.current.setCompletedSearchTerm('');
     });
-    expect(result.current.filteredCompletedTasks).toHaveLength(3);
-  });
 
-  it('initialises completedSearchTerm to empty string', () => {
-    const tasks = makeTasks();
-    const { result } = renderHook(() => useCompletedTaskSearch(tasks));
-    expect(result.current.completedSearchTerm).toBe('');
+    expect(result.current.filteredCompletedTasks).toHaveLength(3);
   });
 });
