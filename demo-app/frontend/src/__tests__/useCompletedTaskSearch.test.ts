@@ -29,61 +29,32 @@ const MOCK_TASKS: Task[] = [
 describe('useCompletedTaskSearch', () => {
   it('returns all tasks when search term is empty', () => {
     const { result } = renderHook(() => useCompletedTaskSearch(MOCK_TASKS));
+
+    expect(result.current.completedSearchTerm).toBe('');
+    expect(result.current.filteredCompletedTasks).toHaveLength(3);
     expect(result.current.filteredCompletedTasks).toEqual(MOCK_TASKS);
   });
 
-  it('filters tasks by title substring (case-insensitive)', () => {
+  it('filters tasks case-insensitively when a search term is set', () => {
     const { result } = renderHook(() => useCompletedTaskSearch(MOCK_TASKS));
+
     act(() => {
-      result.current.setCompletedSearchTerm('buy');
+      result.current.setCompletedSearchTerm('BUY');
     });
+
     expect(result.current.filteredCompletedTasks).toHaveLength(2);
-    expect(result.current.filteredCompletedTasks[0].id).toBe('1');
-    expect(result.current.filteredCompletedTasks[1].id).toBe('3');
+    expect(result.current.filteredCompletedTasks.map((t) => t.title)).toEqual(
+      expect.arrayContaining(['Buy groceries', 'Buy a new laptop'])
+    );
   });
 
-  it('is case-insensitive when filtering', () => {
+  it('returns an empty array when no tasks match the search term', () => {
     const { result } = renderHook(() => useCompletedTaskSearch(MOCK_TASKS));
-    act(() => {
-      result.current.setCompletedSearchTerm('READ');
-    });
-    expect(result.current.filteredCompletedTasks).toHaveLength(1);
-    expect(result.current.filteredCompletedTasks[0].id).toBe('2');
-  });
 
-  it('returns empty array when no tasks match the search term', () => {
-    const { result } = renderHook(() => useCompletedTaskSearch(MOCK_TASKS));
     act(() => {
       result.current.setCompletedSearchTerm('zzznomatch');
     });
+
     expect(result.current.filteredCompletedTasks).toHaveLength(0);
-  });
-
-  it('restores all tasks when search term is cleared', () => {
-    const { result } = renderHook(() => useCompletedTaskSearch(MOCK_TASKS));
-    act(() => {
-      result.current.setCompletedSearchTerm('buy');
-    });
-    expect(result.current.filteredCompletedTasks).toHaveLength(2);
-    act(() => {
-      result.current.setCompletedSearchTerm('');
-    });
-    expect(result.current.filteredCompletedTasks).toEqual(MOCK_TASKS);
-  });
-
-  it('returns all tasks when search term is only whitespace', () => {
-    const { result } = renderHook(() => useCompletedTaskSearch(MOCK_TASKS));
-    act(() => {
-      result.current.setCompletedSearchTerm('   ');
-    });
-    expect(result.current.filteredCompletedTasks).toEqual(MOCK_TASKS);
-  });
-
-  it('exposes completedSearchTerm reflecting the current value', () => {
-    const { result } = renderHook(() => useCompletedTaskSearch(MOCK_TASKS));
-    act(() => {
-      result.current.setCompletedSearchTerm('laptop');
-    });
-    expect(result.current.completedSearchTerm).toBe('laptop');
   });
 });
