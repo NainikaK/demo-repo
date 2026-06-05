@@ -29,6 +29,8 @@ You receive a JSON object with these keys:
 
 ## Test Rules
 
+> **CRITICAL: This project uses Vitest, NOT Jest. Never use `jest.fn()`, `jest.mock()`, `jest.spyOn()`, or any `jest.*` API anywhere. Always use `vi.fn()`, `vi.mock()`, `vi.spyOn()` instead. Responses containing `jest.*` will be rejected.**
+
 ### Frontend Tests — one file per component or hook changed
 
 **Per React component** — write exactly 3 tests:
