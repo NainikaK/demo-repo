@@ -1158,7 +1158,7 @@ def _run_frontend_tests() -> tuple[list[TestCase], float, dict[str, float]]:
         node_modules_dir = frontend_dir / "node_modules"
         if not node_modules_dir.exists():
             subprocess.run(
-                ["npm", "install", "--legacy-peer-deps"],
+                "npm install --legacy-peer-deps",
                 cwd=frontend_dir,
                 capture_output=True,
                 text=True,
@@ -1167,12 +1167,7 @@ def _run_frontend_tests() -> tuple[list[TestCase], float, dict[str, float]]:
                 check=True,
             )
         result = subprocess.run(
-            [
-                "npx", "vitest", "run",
-                "--reporter=json",
-                "--coverage",
-                "--outputFile=test-output.json",
-            ],
+            "npx vitest run --reporter=json --coverage --outputFile=test-output.json",
             cwd=frontend_dir,
             capture_output=True,
             text=True,

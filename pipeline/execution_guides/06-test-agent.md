@@ -28,7 +28,7 @@ Self-corrects build errors and assertion failures before reporting results.
 | Per-function | 1 happy path + 1 failure/edge case per new or modified function |
 | Per-endpoint | 1 test per HTTP status code the endpoint can return |
 | Per-component | 3 tests: render, interaction, edge case |
-| Integration | 1 test per acceptance criterion; calls real backend (no mock) |
+| Integration | Not generated — all tests use mocked dependencies, no real backend calls |
 | Gherkin | 1 test per Gherkin scenario; name: `Scenario_<Title>_<Outcome>` |
 | Coverage | ≥ 70% line coverage on changed files |
 
