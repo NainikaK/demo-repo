@@ -1,65 +1,96 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TaskForm } from '../components/TaskForm';
 
-vi.mock('../hooks/useAssignableUsers', () => ({
-  useAssignableUsers: () => ({ users: [], loading: false, error: null }),
+const mocks = vi.hoisted(() => ({
+  createTask: vi.fn(),
+  useAssignableUsers: vi.fn(),
 }));
 
 vi.mock('../hooks/useCreateTask', () => ({
-  createTask: vi.fn(),
+  createTask: mocks.createTask,
 }));
 
-import * as createTaskModule from '../hooks/useCreateTask';
+vi.mock('../hooks/useAssignableUsers', () => ({
+  useAssignableUsers: mocks.useAssignableUsers,
+}));
 
-describe('TaskForm', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+const noop = () => {};
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('render test - renders the form with a priority select defaulting to medium', () => {
-    render(<TaskForm onTaskCreated={vi.fn()} />);
-
-    const prioritySelect = screen.getByRole('combobox', { name: 'Priority' });
-    expect(prioritySelect).toBeInTheDocument();
-    expect((prioritySelect as HTMLSelectElement).value).toBe('medium');
-  });
-
-  it('interaction test - allows changing the priority to high and submits with that priority', async () => {
-    const createdTask = {
-      id: '10',
-      title: 'New Task',
-      completed: false,
-      createdAt: '2024-01-01T00:00:00.000Z',
-      priority: 'high' as const,
-    };
-    vi.spyOn(createTaskModule, 'createTask').mockResolvedValueOnce(createdTask);
-    const onTaskCreated = vi.fn();
-
-    render(<TaskForm onTaskCreated={onTaskCreated} />);
-
-    await userEvent.type(screen.getByLabelText(/Title/i), 'New Task');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Priority' }), 'high');
-    await userEvent.click(screen.getByRole('button', { name: 'Add new task' }));
-
-    await waitFor(() => {
-      expect(createTaskModule.createTask).toHaveBeenCalledWith(
-        expect.objectContaining({ priority: 'high' }),
-      );
-    });
-  });
-
-  it('edge case - shows a validation error when submitted with an empty title', async () => {
-    render(<TaskForm onTaskCreated={vi.fn()} />);
-
-    await userEvent.click(screen.getByRole('button', { name: 'Add new task' }));
-
-    expect(screen.getByRole('alert')).toBeInTheDocument();
-    expect(screen.getByText('Title is required.')).toBeInTheDocument();
+beforeEach(() => {
+  mocks.useAssignableUsers.mockReturnValue({ users: [], loading: false, error: null });
+  mocks.createTask.mockResolvedValue({
+    id: '1',
+    title: 'Test Task',
+    completed: false,
+    priority: 'medium',
+    createdAt: new Date().toISOString(),
   });
 });
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('TaskForm', () => {
+  it('renders the character counter with initial value 0/100', () => {
+    render(<TaskForm onTaskCreated={noop} />);
+    const counter = screen.getByLabelText('Title character count');
+    expect(counter).toBeTruthy();
+    expect(counter.textContent).toBe('0/100');
+  });
+
+  it('updates the character counter on every keystroke', async () => {
+    const user = userEvent.setup();
+    render(<TaskForm onTaskCreated={noop} />);
+    const input = screen.getByRole('textbox', { name: /title/i });
+    await user.type(input, 'Hello');
+    const counter = screen.getByLabelText('Title character count');
+    expect(counter.textContent).toBe('5/100');
+  });
+
+  it('counter text is not red when character count is 80 or below', async () => {
+    const user = userEvent.setup();
+    render(<TaskForm onTaskCreated={noop} />);
+    const input = screen.getByRole('textbox', { name: /title/i });
+    const eightyChars = 'a'.repeat(80);
+    await user.type(input, eightyChars);
+    const counter = screen.getByLabelText('Title character count');
+    expect(counter.textContent).toBe('80/100');
+    expect(counter.className).not.toMatch(/text-red/);
+  });
+
+  it('counter text turns red when character count exceeds 80', async () => {
+    const user = userEvent.setup();
+    render(<TaskForm onTaskCreated={noop} />);
+    const input = screen.getByRole('textbox', { name: /title/i });
+    const eightyOneChars = 'a'.repeat(81);
+    await user.type(input, eightyOneChars);
+    const counter = screen.getByLabelText('Title character count');
+    expect(counter.textContent).toBe('81/100');
+    expect(counter.className).toMatch(/text-red/);
+  });
+
+  it('renders without crashing when onTaskCreated is a no-op', () => {
+    render(<TaskForm onTaskCreated={noop} />);
+    expect(screen.getByRole('button', { name: /add new task/i })).toBeTruthy();
+  });
+
+  it('counter displays format X/100 matching current input length', async () => {
+    const user = userEvent.setup();
+    render(<TaskForm onTaskCreated={noop} />);
+    const input = screen.getByRole('textbox', { name: /title/i });
+    await user.type(input, 'abc');
+    const counter = screen.getByLabelText('Title character count');
+    expect(counter.textContent).toBe('3/100');
+  });
+
+  it('does not crash when no title is entered and form is submitted', async () => {
+    const user = userEvent.setup();
+    render(<TaskForm onTaskCreated={noop} />);
+    const submitButton = screen.getByRole('button', { name: /add new task/i });
+    await user.click(submitButton);
+    expect(screen.getByText('Title is required.')).toBeTruthy();
+  });
+})

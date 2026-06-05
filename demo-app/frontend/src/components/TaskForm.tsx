@@ -18,6 +18,7 @@ import {
   LABEL_TASK_FORM_HEADING,
   LABEL_TASK_FORM_HEADING_ICON_ARIA,
   LABEL_TITLE,
+  LABEL_TITLE_CHAR_COUNTER_ARIA,
   LABEL_TITLE_PLACEHOLDER,
   LABEL_TITLE_REQUIRED,
 } from '../utils/strings';
@@ -31,6 +32,8 @@ const EMPTY_DESCRIPTION = '';
 const EMPTY_DUE_DATE = '';
 const EMPTY_ASSIGNED_TO = '';
 const DEFAULT_PRIORITY: Priority = 'medium';
+const TITLE_MAX_LENGTH = 100;
+const TITLE_WARN_LENGTH = 80;
 
 const PRIORITY_OPTIONS: Array<{ value: Priority; label: string }> = [
   { value: 'low', label: LABEL_PRIORITY_LOW },
@@ -49,6 +52,9 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
   const [submitting, setSubmitting] = useState<boolean>(false);
 
   const { users } = useAssignableUsers();
+
+  const charCount = title.length;
+  const isCharCountOverWarning = charCount > TITLE_WARN_LENGTH;
 
   const resetForm = () => {
     setTitle(EMPTY_TITLE);
@@ -139,7 +145,7 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
             onChange={handleTitleChange}
             placeholder={LABEL_TITLE_PLACEHOLDER}
             aria-required="true"
-            aria-describedby={titleError ? 'task-title-error' : undefined}
+            aria-describedby={titleError ? 'task-title-error task-title-counter' : 'task-title-counter'}
             aria-invalid={titleError ? 'true' : 'false'}
             className={`rounded-md border px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
               titleError
@@ -147,6 +153,17 @@ export function TaskForm({ onTaskCreated }: TaskFormProps) {
                 : 'border-gray-300 dark:border-gray-600'
             }`}
           />
+          <p
+            id="task-title-counter"
+            aria-label={LABEL_TITLE_CHAR_COUNTER_ARIA}
+            className={`text-xs mt-1 ${
+              isCharCountOverWarning
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-gray-500 dark:text-gray-400'
+            }`}
+          >
+            {charCount}/{TITLE_MAX_LENGTH}
+          </p>
           {titleError && (
             <p
               id="task-title-error"
