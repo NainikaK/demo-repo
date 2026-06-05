@@ -91,6 +91,9 @@ export const LABEL_ACTIVITY_EMPTY = 'No activity recorded yet.';
 export const LABEL_TASK_SEARCH_PLACEHOLDER = 'Search tasks...';
 export const LABEL_TASK_SEARCH_ARIA = 'Search upcoming tasks by title';
 
+export const LABEL_COMPLETED_SEARCH_PLACEHOLDER = 'Search tasks...';
+export const LABEL_COMPLETED_SEARCH_ARIA = 'Search completed tasks by title';
+
 export const LABEL_STATS_TOTAL = 'Total Tasks';
 export const LABEL_STATS_COMPLETED = 'Completed';
 export const LABEL_STATS_PENDING = 'Pending';
