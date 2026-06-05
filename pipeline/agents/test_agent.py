@@ -1140,21 +1140,23 @@ def _run_frontend_tests() -> tuple[list[TestCase], float, dict[str, float]]:
     """
     frontend_dir = git_utils.get_repo_root() / "demo-app" / "frontend"
     try:
-        subprocess.run(
-            ["npm", "install", "--legacy-peer-deps"],
-            cwd=frontend_dir,
-            capture_output=True,
-            text=True,
-            timeout=_TEST_RUNNER_TIMEOUT,
-            shell=True,
-            check=True,
-        )
+        node_modules_dir = frontend_dir / "node_modules"
+        if not node_modules_dir.exists():
+            subprocess.run(
+                ["npm", "install", "--legacy-peer-deps"],
+                cwd=frontend_dir,
+                capture_output=True,
+                text=True,
+                timeout=_TEST_RUNNER_TIMEOUT,
+                shell=True,
+                check=True,
+            )
         result = subprocess.run(
             [
                 "npx", "vitest", "run",
                 "--reporter=json",
                 "--coverage",
-                "--coverage.reporter=json-summary",
+                "--outputFile=test-output.json",
             ],
             cwd=frontend_dir,
             capture_output=True,
@@ -1162,7 +1164,16 @@ def _run_frontend_tests() -> tuple[list[TestCase], float, dict[str, float]]:
             timeout=_TEST_RUNNER_TIMEOUT,
             shell=True,
         )
-        cases = _parse_vitest_output(result.stdout or result.stderr)
+        test_output_file = frontend_dir / "test-output.json"
+        if test_output_file.exists():
+            try:
+                vitest_output = test_output_file.read_text(encoding="utf-8")
+                test_output_file.unlink()
+            except (OSError, IOError):
+                vitest_output = result.stdout or result.stderr
+        else:
+            vitest_output = result.stdout or result.stderr
+        cases = _parse_vitest_output(vitest_output)
         cov_pct, cov_files = _parse_vitest_coverage(frontend_dir)
         return (cases, cov_pct, cov_files)
     except Exception as exc:
