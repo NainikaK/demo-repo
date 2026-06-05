@@ -607,6 +607,7 @@ def _correct_backend_tests(
     )
 
     stuck_counts: dict[str, int] = {}
+    correction_counts: dict[str, int] = {}
 
     for attempt in range(1, _CORRECTION_MAX_ATTEMPTS + 1):
         failed = [c for c in best if c.status == TestStatus.failed]
@@ -627,6 +628,15 @@ def _correct_backend_tests(
         any_fixed = False
         for rel_path, file_cases in file_failures.items():
             abs_path = repo_root / rel_path
+
+            if correction_counts.get(rel_path, 0) >= _MAX_FILE_CORRECTIONS:
+                print(f"{_LOG_PREFIX} deleting exhausted test (>{_MAX_FILE_CORRECTIONS} corrections): {Path(rel_path).name}")
+                if abs_path.exists():
+                    abs_path.unlink()
+                    git_utils.commit_changes([rel_path], f"[auto-fix] delete exhausted test: {rel_path}")
+                    any_fixed = True
+                continue
+
             try:
                 current_content = abs_path.read_text(encoding="utf-8")
             except OSError:
@@ -676,6 +686,7 @@ def _correct_backend_tests(
                 continue
 
             stuck_counts[rel_path] = 0
+            correction_counts[rel_path] = correction_counts.get(rel_path, 0) + 1
             git_utils.write_file(rel_path, corrected)
             git_utils.commit_changes([rel_path], f"[auto-fix] correct test: {rel_path}")
             any_fixed = True
