@@ -1001,17 +1001,6 @@ class Orchestrator:
             f"frontend_components_to_create={len(lld.frontend_changes.components_to_create)} "
             f"backend_endpoints={len(lld.backend_changes.endpoints)}"
         )
-<<<<<<< Updated upstream
-        self._post_activity_comment(
-            work_item_id, "Spec Agent", "Complete",
-            [
-                f"Files to create: {len(lld.files_to_create)}",
-                f"Files to modify: {len(lld.files_to_modify)}",
-                f"Frontend components: {len(lld.frontend_changes.components_to_create)}",
-                f"Backend endpoints: {len(lld.backend_changes.endpoints)}",
-            ],
-        )
-=======
 
         def _fl(items: list[str], n: int = 3) -> str:
             names = [Path(p).name for p in items]
@@ -1048,7 +1037,6 @@ class Orchestrator:
                 f"New dependencies: {', '.join(all_deps[:3])}" + (f" ... +{extra} more" if extra > 0 else "")
             )
         self._post_activity_comment(work_item_id, "Spec Agent", "Complete", spec_bullets)
->>>>>>> Stashed changes
         return True
 
     def _run_frontend_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
@@ -1082,18 +1070,6 @@ class Orchestrator:
             f"branch={summary.branch_name!r} "
             f"self_review_clean={summary.self_review.clean}"
         )
-<<<<<<< Updated upstream
-        fe_review = "Clean" if summary.self_review.clean else "Issues found"
-        self._post_activity_comment(
-            work_item_id, "Frontend Agent", "Complete",
-            [
-                f"Branch: {summary.branch_name}",
-                f"Files created: {len(summary.files_created)}",
-                f"Files modified: {len(summary.files_modified)}",
-                f"Self-review: {fe_review}",
-            ],
-        )
-=======
 
         def _fl(paths: list[str], n: int = 3) -> str:
             names = [Path(p).name for p in paths]
@@ -1124,7 +1100,6 @@ class Orchestrator:
                 f"New dependencies: {', '.join(dep_names[:3])}" + (f" ... +{extra} more" if extra > 0 else "")
             )
         self._post_activity_comment(work_item_id, "Frontend Agent", "Complete", fe_bullets)
->>>>>>> Stashed changes
         return True
 
     def _run_backend_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
@@ -1163,21 +1138,6 @@ class Orchestrator:
             f"branch={summary.branch_name!r} "
             f"self_review_clean={summary.self_review.clean}"
         )
-<<<<<<< Updated upstream
-        be_skipped = not summary.files_created and not summary.files_modified
-        be_status = "Skipped" if be_skipped else "Complete"
-        if be_skipped:
-            be_bullets = ["No backend changes required by LLD"]
-        else:
-            be_review = "Clean" if summary.self_review.clean else "Issues found"
-            be_bullets = [
-                f"Branch: {summary.branch_name}",
-                f"Files created: {len(summary.files_created)}",
-                f"Files modified: {len(summary.files_modified)}",
-                f"Self-review: {be_review}",
-            ]
-        self._post_activity_comment(work_item_id, "Backend Agent", be_status, be_bullets)
-=======
 
         be_skipped = not summary.files_created and not summary.files_modified
         if be_skipped:
@@ -1215,7 +1175,6 @@ class Orchestrator:
                     f"New dependencies: {', '.join(dep_names[:3])}" + (f" ... +{extra} more" if extra > 0 else "")
                 )
             self._post_activity_comment(work_item_id, "Backend Agent", "Complete", be_bullets)
->>>>>>> Stashed changes
         return True
 
     def _run_test_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
