@@ -1001,6 +1001,7 @@ class Orchestrator:
             f"frontend_components_to_create={len(lld.frontend_changes.components_to_create)} "
             f"backend_endpoints={len(lld.backend_changes.endpoints)}"
         )
+<<<<<<< Updated upstream
         self._post_activity_comment(
             work_item_id, "Spec Agent", "Complete",
             [
@@ -1010,6 +1011,44 @@ class Orchestrator:
                 f"Backend endpoints: {len(lld.backend_changes.endpoints)}",
             ],
         )
+=======
+
+        def _fl(items: list[str], n: int = 3) -> str:
+            names = [Path(p).name for p in items]
+            extra = len(names) - n
+            return ", ".join(names[:n]) + (f" ... +{extra} more" if extra > 0 else "")
+
+        spec_bullets: list[str] = []
+        if lld.files_to_create:
+            spec_bullets.append(f"Files to create: {_fl(lld.files_to_create)}")
+        if lld.files_to_modify:
+            spec_bullets.append(f"Files to modify: {_fl(lld.files_to_modify)}")
+        if lld.backend_changes.endpoints:
+            ep_strs = [f"{ep.method} {ep.path}" for ep in lld.backend_changes.endpoints]
+            extra = len(ep_strs) - 3
+            ep_label = ", ".join(ep_strs[:3]) + (f" ... +{extra} more" if extra > 0 else "")
+            spec_bullets.append(f"Endpoints: {ep_label}")
+        if lld.frontend_changes.components_to_create:
+            c = lld.frontend_changes.components_to_create
+            extra = len(c) - 3
+            spec_bullets.append(
+                ", ".join(c[:3]) + (f" ... +{extra} more" if extra > 0 else "")
+            )
+            spec_bullets[-1] = f"Components to create: {spec_bullets[-1]}"
+        if lld.frontend_changes.hooks:
+            h = lld.frontend_changes.hooks
+            extra = len(h) - 3
+            spec_bullets.append(
+                f"Hooks: {', '.join(h[:3])}" + (f" ... +{extra} more" if extra > 0 else "")
+            )
+        all_deps = lld.new_dependencies.frontend + lld.new_dependencies.backend
+        if all_deps:
+            extra = len(all_deps) - 3
+            spec_bullets.append(
+                f"New dependencies: {', '.join(all_deps[:3])}" + (f" ... +{extra} more" if extra > 0 else "")
+            )
+        self._post_activity_comment(work_item_id, "Spec Agent", "Complete", spec_bullets)
+>>>>>>> Stashed changes
         return True
 
     def _run_frontend_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
@@ -1043,6 +1082,7 @@ class Orchestrator:
             f"branch={summary.branch_name!r} "
             f"self_review_clean={summary.self_review.clean}"
         )
+<<<<<<< Updated upstream
         fe_review = "Clean" if summary.self_review.clean else "Issues found"
         self._post_activity_comment(
             work_item_id, "Frontend Agent", "Complete",
@@ -1053,6 +1093,38 @@ class Orchestrator:
                 f"Self-review: {fe_review}",
             ],
         )
+=======
+
+        def _fl(paths: list[str], n: int = 3) -> str:
+            names = [Path(p).name for p in paths]
+            extra = len(names) - n
+            return ", ".join(names[:n]) + (f" ... +{extra} more" if extra > 0 else "")
+
+        fe_bullets: list[str] = [f"Branch: {summary.branch_name}"]
+        if summary.files_created:
+            fe_bullets.append(f"Files created: {_fl(summary.files_created)}")
+        if summary.files_modified:
+            fe_bullets.append(f"Files modified: {_fl(summary.files_modified)}")
+        sr = summary.self_review
+        if sr.clean:
+            fe_bullets.append("Self-review: Clean")
+        elif sr.violations_fixed:
+            fe_bullets.append(
+                f"Self-review: {len(sr.violations_found)} violation(s) found, {len(sr.violations_fixed)} fixed"
+            )
+        else:
+            fe_bullets.append(f"Self-review: {len(sr.violations_found)} violation(s) found")
+        if summary.visual_description:
+            vd = summary.visual_description
+            fe_bullets.append(f"Visual description: {vd[:120]}{'...' if len(vd) > 120 else ''}")
+        if summary.dependencies_added:
+            dep_names = [d.package_name for d in summary.dependencies_added]
+            extra = len(dep_names) - 3
+            fe_bullets.append(
+                f"New dependencies: {', '.join(dep_names[:3])}" + (f" ... +{extra} more" if extra > 0 else "")
+            )
+        self._post_activity_comment(work_item_id, "Frontend Agent", "Complete", fe_bullets)
+>>>>>>> Stashed changes
         return True
 
     def _run_backend_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
@@ -1091,6 +1163,7 @@ class Orchestrator:
             f"branch={summary.branch_name!r} "
             f"self_review_clean={summary.self_review.clean}"
         )
+<<<<<<< Updated upstream
         be_skipped = not summary.files_created and not summary.files_modified
         be_status = "Skipped" if be_skipped else "Complete"
         if be_skipped:
@@ -1104,6 +1177,45 @@ class Orchestrator:
                 f"Self-review: {be_review}",
             ]
         self._post_activity_comment(work_item_id, "Backend Agent", be_status, be_bullets)
+=======
+
+        be_skipped = not summary.files_created and not summary.files_modified
+        if be_skipped:
+            self._post_activity_comment(
+                work_item_id, "Backend Agent", "Skipped",
+                ["No backend changes required by LLD"],
+            )
+        else:
+            def _fl(paths: list[str], n: int = 3) -> str:
+                names = [Path(p).name for p in paths]
+                extra = len(names) - n
+                return ", ".join(names[:n]) + (f" ... +{extra} more" if extra > 0 else "")
+
+            be_bullets: list[str] = [f"Branch: {summary.branch_name}"]
+            if summary.files_created:
+                be_bullets.append(f"Files created: {_fl(summary.files_created)}")
+            if summary.files_modified:
+                be_bullets.append(f"Files modified: {_fl(summary.files_modified)}")
+            if summary.api_contract_validation:
+                cv = summary.api_contract_validation
+                be_bullets.append(f"API contract: {cv[:120]}{'...' if len(cv) > 120 else ''}")
+            sr = summary.self_review
+            if sr.clean:
+                be_bullets.append("Self-review: Clean")
+            elif sr.violations_fixed:
+                be_bullets.append(
+                    f"Self-review: {len(sr.violations_found)} violation(s) found, {len(sr.violations_fixed)} fixed"
+                )
+            else:
+                be_bullets.append(f"Self-review: {len(sr.violations_found)} violation(s) found")
+            if summary.dependencies_added:
+                dep_names = [d.package_name for d in summary.dependencies_added]
+                extra = len(dep_names) - 3
+                be_bullets.append(
+                    f"New dependencies: {', '.join(dep_names[:3])}" + (f" ... +{extra} more" if extra > 0 else "")
+                )
+            self._post_activity_comment(work_item_id, "Backend Agent", "Complete", be_bullets)
+>>>>>>> Stashed changes
         return True
 
     def _run_test_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
@@ -1145,6 +1257,42 @@ class Orchestrator:
             f"<strong>Full test details:</strong> <code>{doc_name}</code>"
         )
         self._post_ado_comment(work_item_id, comment)
+
+        te_bullets: list[str] = [
+            f"Tests: {result.total_tests} total, {result.passed} passed, {result.failed} failed",
+            f"Coverage: {coverage:.1f}%",
+        ]
+        if result.coverage.below_threshold:
+            bt = result.coverage.below_threshold
+            names = [Path(p).name for p in bt]
+            extra = len(names) - 3
+            te_bullets.append(
+                f"Files below 70% threshold: {', '.join(names[:3])}" + (f" ... +{extra} more" if extra > 0 else "")
+            )
+        if result.coverage.files_checked:
+            fc = result.coverage.files_checked
+            names = [Path(p).name for p in fc]
+            extra = len(names) - 3
+            te_bullets.append(
+                f"Test files written: {', '.join(names[:3])}" + (f" ... +{extra} more" if extra > 0 else "")
+            )
+        corrections_label = (
+            "Not triggered" if result.correction_attempts == 0
+            else f"{result.correction_attempts} correction(s) applied"
+        )
+        te_bullets.append(f"Self-correction: {corrections_label}")
+        te_status = "Complete" if result.failed == 0 else "Below Threshold"
+        self._post_activity_comment(work_item_id, "Test Agent", te_status, te_bullets)
+
+        if result.correction_attempts > 0:
+            self._post_activity_comment(
+                work_item_id, "Test Agent", "Self-Correction Triggered",
+                [
+                    f"Correction attempts applied: {result.correction_attempts}",
+                    f"Tests after correction: {result.total_tests} total, {result.passed} passed, {result.failed} failed",
+                    f"Final coverage: {coverage:.1f}%",
+                ],
+            )
 
         print(
             f"{LOG_PREFIX} phase=test_agent "
