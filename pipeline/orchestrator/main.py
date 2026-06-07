@@ -1259,29 +1259,6 @@ class Orchestrator:
             f"passed={result.passed} "
             f"failed={result.failed}"
         )
-        activity_status = "Complete" if result.failed == 0 else "Below Threshold"
-        corrections_label = (
-            "Not triggered" if result.correction_attempts == 0
-            else f"{result.correction_attempts} correction(s) applied"
-        )
-        self._post_activity_comment(
-            work_item_id, "Test Agent", activity_status,
-            [
-                f"Tests: {result.total_tests} total, {result.passed} passed, {result.failed} failed",
-                f"Coverage: {coverage:.1f}%",
-                f"Test files written: {len(result.coverage.files_checked)}",
-                f"Self-correction: {corrections_label}",
-            ],
-        )
-        if result.correction_attempts > 0:
-            self._post_activity_comment(
-                work_item_id, "Test Agent", "Self-Correction Triggered",
-                [
-                    f"Correction attempts applied: {result.correction_attempts}",
-                    f"Tests after correction: {result.total_tests} total, {result.passed} passed, {result.failed} failed",
-                    f"Final coverage: {coverage:.1f}%",
-                ],
-            )
         if result.failed > 0:
             failed_cases = [c for c in result.test_cases if c.status.value == "failed"]
             failure_summary = "; ".join(
