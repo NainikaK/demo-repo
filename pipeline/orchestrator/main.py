@@ -802,7 +802,7 @@ class Orchestrator:
     ) -> None:
         """Post a structured per-agent activity summary comment to an ADO work item."""
         bullet_lines = "<br>".join(f"- {b}" for b in bullets)
-        message = f"[{agent_name}] &mdash; {status}<br>---<br>{bullet_lines}"
+        message = f"<strong>[{agent_name}]</strong> &mdash; <strong>{status}</strong><br><br>{bullet_lines}"
         self._post_ado_comment(work_item_id, message)
 
     # -------------------------------------------------------------------------
@@ -1092,7 +1092,7 @@ class Orchestrator:
             fe_bullets.append(f"Self-review: {len(sr.violations_found)} violation(s) found")
         if summary.visual_description:
             vd = summary.visual_description
-            fe_bullets.append(f"Visual description: {vd[:120]}{'...' if len(vd) > 120 else ''}")
+            fe_bullets.append(f"Visual description: {vd[:250]}{'...' if len(vd) > 250 else ''}")
         if summary.dependencies_added:
             dep_names = [d.package_name for d in summary.dependencies_added]
             extra = len(dep_names) - 3
@@ -1222,11 +1222,8 @@ class Orchestrator:
             f"Coverage: {coverage:.1f}%",
         ]
         if result.coverage.below_threshold:
-            bt = result.coverage.below_threshold
-            names = [Path(p).name for p in bt]
-            extra = len(names) - 3
             te_bullets.append(
-                f"Files below 70% threshold: {', '.join(names[:3])}" + (f" ... +{extra} more" if extra > 0 else "")
+                f"Files below 70% threshold: {len(result.coverage.below_threshold)} — see full report"
             )
         if result.coverage.files_checked:
             fc = result.coverage.files_checked
@@ -1240,6 +1237,7 @@ class Orchestrator:
             else f"{result.correction_attempts} correction(s) applied"
         )
         te_bullets.append(f"Self-correction: {corrections_label}")
+        te_bullets.append(f"Full test report: {doc_name}")
         te_status = "Complete" if result.failed == 0 else "Below Threshold"
         self._post_activity_comment(work_item_id, "Test Agent", te_status, te_bullets)
 
@@ -1379,13 +1377,6 @@ class Orchestrator:
             )
         except RuntimeError as exc:
             print(f"{LOG_PREFIX} phase=supervisor recommendation=reject — {exc}")
-            self._post_activity_comment(
-                work_item_id, "Supervisor Agent", "Rejected",
-                [
-                    f"Reason: {exc}",
-                    f"Audit score: {run.audit_report.composite_score}/10.0",
-                ],
-            )
             self._post_ado_comment(
                 work_item_id,
                 f"[AI Pipeline] <strong>Pipeline Did Not Merge</strong><br><br>"
@@ -1397,16 +1388,6 @@ class Orchestrator:
 
         run.github_pr_url = decision.pr_url
 
-        sv_status = "Auto-Merged" if decision.merged else "Human Review Required"
-        self._post_activity_comment(
-            work_item_id, "Supervisor Agent", sv_status,
-            [
-                f"PR URL: {decision.pr_url}",
-                f"Merged: {'Yes' if decision.merged else 'No'}",
-                f"Decision: {decision.decision}",
-                f"Audit score: {run.audit_report.composite_score}/10.0",
-            ],
-        )
         merged_label = "Yes" if decision.merged else "No"
         self._post_ado_comment(
             work_item_id,
