@@ -74,6 +74,11 @@ class TestResults(BaseModel):
         ge=0,
         description="Number of tests that were skipped."
     )
+    correction_attempts: int = Field(
+        default=0,
+        ge=0,
+        description="Number of self-correction attempts applied by the Test Agent during this run."
+    )
     coverage: CoverageReport = Field(
         description="Line coverage report across all files changed by this pipeline run."
     )

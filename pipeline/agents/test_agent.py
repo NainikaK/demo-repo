@@ -162,11 +162,11 @@ def run(
 
     print(f"{_LOG_PREFIX} running frontend test suite")
     _fe_result = _run_frontend_tests()
-    frontend_cases, corrected_fe_cov = _correct_frontend_tests(_fe_result[0], frontend_summary, anthropic_client, branch_name)
+    frontend_cases, corrected_fe_cov, fe_corrections = _correct_frontend_tests(_fe_result[0], frontend_summary, anthropic_client, branch_name)
 
     print(f"{_LOG_PREFIX} running backend test suite")
     _be_result = _run_backend_tests(backend_summary)
-    backend_cases, corrected_be_cov = _correct_backend_tests(_be_result[0], backend_summary, anthropic_client, branch_name)
+    backend_cases, corrected_be_cov, be_corrections = _correct_backend_tests(_be_result[0], backend_summary, anthropic_client, branch_name)
 
     results = _aggregate_results(
         work_item_id,
@@ -175,6 +175,7 @@ def run(
         written_files,
         frontend_coverage=corrected_fe_cov if corrected_fe_cov[1] else (_fe_result[1], _fe_result[2]),
         backend_coverage=corrected_be_cov if corrected_be_cov[1] else (_be_result[1], _be_result[2]),
+        correction_attempts=fe_corrections + be_corrections,
     )
     print(
         f"{_LOG_PREFIX} complete "
@@ -461,7 +462,7 @@ def _correct_frontend_tests(
     frontend_summary: ChangeSummary,
     anthropic_client: anthropic.Anthropic,
     branch_name: str,
-) -> tuple[list[TestCase], tuple[float, dict[str, float]]]:
+) -> tuple[list[TestCase], tuple[float, dict[str, float]], int]:
     """Fix failing frontend tests one file at a time, up to _CORRECTION_MAX_ATTEMPTS rounds."""
     best = cases
     best_coverage: tuple[float, dict[str, float]] = (0.0, {})
@@ -590,7 +591,7 @@ def _correct_frontend_tests(
         if new_failed == 0:
             break
 
-    return best, best_coverage
+    return best, best_coverage, sum(correction_counts.values())
 
 
 def _correct_backend_tests(
@@ -598,7 +599,7 @@ def _correct_backend_tests(
     backend_summary: ChangeSummary,
     anthropic_client: anthropic.Anthropic,
     branch_name: str,
-) -> tuple[list[TestCase], tuple[float, dict[str, float]]]:
+) -> tuple[list[TestCase], tuple[float, dict[str, float]], int]:
     """Fix failing backend tests one file at a time, up to _CORRECTION_MAX_ATTEMPTS rounds."""
     best = cases
     best_coverage: tuple[float, dict[str, float]] = (0.0, {})
@@ -703,7 +704,7 @@ def _correct_backend_tests(
         if new_failed == 0:
             break
 
-    return best, best_coverage
+    return best, best_coverage, sum(correction_counts.values())
 
 
 def _find_describe_block_end(content: str, start: int) -> int:
@@ -1416,6 +1417,7 @@ def _aggregate_results(
     written_files: list[str],
     frontend_coverage: tuple[float, dict[str, float]] | None = None,
     backend_coverage: tuple[float, dict[str, float]] | None = None,
+    correction_attempts: int = 0,
 ) -> TestResults:
     """Combine frontend and backend test cases into a single TestResults record."""
     all_cases = frontend_cases + backend_cases
@@ -1454,6 +1456,7 @@ def _aggregate_results(
         passed=passed,
         failed=failed,
         skipped=skipped,
+        correction_attempts=correction_attempts,
         coverage=CoverageReport(
             line_coverage_percent=line_cov,
             files_checked=written_files,
