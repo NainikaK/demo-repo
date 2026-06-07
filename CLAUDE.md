@@ -163,6 +163,49 @@ or tester is in the loop.
 
 ---
 
+## Teams Integration
+
+The pipeline has a Microsoft Teams front door via the **SDLC Pipeline Bot** (built in
+Copilot Studio). Product Owners submit requirements through a guided multi-turn
+conversation in Teams rather than creating ADO work items directly.
+
+**Intake flow:**
+1. User opens the SDLC Pipeline Bot in Teams and describes the requirement.
+2. The bot collects **title**, **description**, **acceptance criteria**, and **priority**
+   through a structured conversation.
+3. Users can cancel at any point by typing `abort`, `cancel`, or `stop`, or by clicking
+   the Cancel button on any Adaptive Card.
+4. On confirmation, **Power Automate** creates the ADO work item with the
+   `ai-pipeline-trigger` tag — the orchestrator picks it up on the next poll cycle.
+
+**Status relay:** An Azure Logic App (`sdlc-ado-relay`) listens for ADO service hook
+events and posts pipeline status updates back to the originating Teams thread.
+
+---
+
+## ADO Activity Comments
+
+After each agent completes, the orchestrator posts a structured activity comment to the
+ADO work item. The format is `[Agent Name] — Status` followed by a bullet list of key
+outputs.
+
+| Agent | Comment contents |
+|---|---|
+| **Clarification** | Confidence score, whether clarification was required, acceptance criteria count, gaps identified |
+| **Story Writer** | Number of stories created, ADO story IDs |
+| **Spec** | Files to create, files to modify, planned endpoints, components, hooks, new dependencies |
+| **Frontend** | Branch name, files created/modified, self-review result, visual description excerpt, new dependencies |
+| **Backend** | Branch name, files created/modified, API contract validation result, self-review result — or "Skipped" if LLD requires no backend changes |
+| **Test** | Pass/fail/skip counts, coverage %, test files written, self-correction status, link to full test report |
+| **Audit** | Composite score, merge recommendation, blocking finding count, test coverage category score |
+| **Supervisor** | Covered by the existing "Pipeline Complete" ADO comment; no separate activity comment is posted |
+
+**Self-correction comment:** When `correction_attempts > 0`, a second comment is posted
+under the status "Self-Correction Triggered" showing the correction count and final
+test outcome.
+
+---
+
 ## Audit Scoring
 
 | Category | Weight | Max |
@@ -200,6 +243,12 @@ or tester is in the loop.
 
 **ADO trigger:** Work items must be type `Feature` or `User Story`, state `New`, and
 tagged `ai-pipeline-trigger`.
+
+**Teams intake:** Requirements can be submitted via the SDLC Pipeline Bot in Microsoft
+Teams as an alternative to creating ADO work items directly.
+
+**ADO comments:** One structured activity comment is posted per agent immediately after
+completion.
 
 **Branch naming:** `feature/<work-item-id>-<kebab-case-slug>`  
 Example: `feature/4821-dark-light-mode-toggle`
