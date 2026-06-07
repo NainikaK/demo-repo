@@ -793,6 +793,18 @@ class Orchestrator:
         except Exception as exc:
             print(f"{LOG_PREFIX} warning: could not post ADO comment to {work_item_id} — {exc}")
 
+    def _post_activity_comment(
+        self,
+        work_item_id: str,
+        agent_name: str,
+        status: str,
+        bullets: list[str],
+    ) -> None:
+        """Post a structured per-agent activity summary comment to an ADO work item."""
+        bullet_lines = "<br>".join(f"- {b}" for b in bullets)
+        message = f"[{agent_name}] &mdash; {status}<br>---<br>{bullet_lines}"
+        self._post_ado_comment(work_item_id, message)
+
     # -------------------------------------------------------------------------
     # Agent stubs — placeholder implementations replaced as agents are built
     # -------------------------------------------------------------------------
@@ -915,6 +927,17 @@ class Orchestrator:
                 f"gaps={len(result.spec.gaps)} partial_confidence={result.spec.partial_confidence}"
             )
         print(f"{LOG_PREFIX} phase=clarification status=complete confidence_score={score}")
+        ac_count = len(result.spec.acceptance_criteria) if result.spec else 0
+        gaps_count = len(result.spec.gaps) if (result.spec and result.spec.gaps) else 0
+        self._post_activity_comment(
+            work_item_id, "Clarification Agent", "Complete",
+            [
+                f"Confidence score: {score}/100",
+                f"Clarification required: {'Yes' if _paused else 'No'}",
+                f"Acceptance criteria extracted: {ac_count}",
+                f"Gaps identified: {gaps_count}",
+            ],
+        )
         return True
 
     def _run_story_writer(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
@@ -941,6 +964,14 @@ class Orchestrator:
             return False
 
         print(f"{LOG_PREFIX} phase=story_writer stories_created={len(story_ids)} ids={story_ids}")
+        story_ids_str = ", ".join(str(sid) for sid in story_ids)
+        self._post_activity_comment(
+            work_item_id, "Story Writer Agent", "Complete",
+            [
+                f"User stories created: {len(story_ids)}",
+                f"Story IDs: {story_ids_str}",
+            ],
+        )
         return True
 
     def _run_spec_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
@@ -969,6 +1000,15 @@ class Orchestrator:
             f"files_to_modify={len(lld.files_to_modify)} "
             f"frontend_components_to_create={len(lld.frontend_changes.components_to_create)} "
             f"backend_endpoints={len(lld.backend_changes.endpoints)}"
+        )
+        self._post_activity_comment(
+            work_item_id, "Spec Agent", "Complete",
+            [
+                f"Files to create: {len(lld.files_to_create)}",
+                f"Files to modify: {len(lld.files_to_modify)}",
+                f"Frontend components: {len(lld.frontend_changes.components_to_create)}",
+                f"Backend endpoints: {len(lld.backend_changes.endpoints)}",
+            ],
         )
         return True
 
@@ -1002,6 +1042,16 @@ class Orchestrator:
             f"files_modified={len(summary.files_modified)} "
             f"branch={summary.branch_name!r} "
             f"self_review_clean={summary.self_review.clean}"
+        )
+        fe_review = "Clean" if summary.self_review.clean else "Issues found"
+        self._post_activity_comment(
+            work_item_id, "Frontend Agent", "Complete",
+            [
+                f"Branch: {summary.branch_name}",
+                f"Files created: {len(summary.files_created)}",
+                f"Files modified: {len(summary.files_modified)}",
+                f"Self-review: {fe_review}",
+            ],
         )
         return True
 
@@ -1041,6 +1091,19 @@ class Orchestrator:
             f"branch={summary.branch_name!r} "
             f"self_review_clean={summary.self_review.clean}"
         )
+        be_skipped = not summary.files_created and not summary.files_modified
+        be_status = "Skipped" if be_skipped else "Complete"
+        if be_skipped:
+            be_bullets = ["No backend changes required by LLD"]
+        else:
+            be_review = "Clean" if summary.self_review.clean else "Issues found"
+            be_bullets = [
+                f"Branch: {summary.branch_name}",
+                f"Files created: {len(summary.files_created)}",
+                f"Files modified: {len(summary.files_modified)}",
+                f"Self-review: {be_review}",
+            ]
+        self._post_activity_comment(work_item_id, "Backend Agent", be_status, be_bullets)
         return True
 
     def _run_test_agent(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
@@ -1089,6 +1152,29 @@ class Orchestrator:
             f"passed={result.passed} "
             f"failed={result.failed}"
         )
+        activity_status = "Complete" if result.failed == 0 else "Below Threshold"
+        corrections_label = (
+            "Not triggered" if result.correction_attempts == 0
+            else f"{result.correction_attempts} correction(s) applied"
+        )
+        self._post_activity_comment(
+            work_item_id, "Test Agent", activity_status,
+            [
+                f"Tests: {result.total_tests} total, {result.passed} passed, {result.failed} failed",
+                f"Coverage: {coverage:.1f}%",
+                f"Test files written: {len(result.coverage.files_checked)}",
+                f"Self-correction: {corrections_label}",
+            ],
+        )
+        if result.correction_attempts > 0:
+            self._post_activity_comment(
+                work_item_id, "Test Agent", "Self-Correction Triggered",
+                [
+                    f"Correction attempts applied: {result.correction_attempts}",
+                    f"Tests after correction: {result.total_tests} total, {result.passed} passed, {result.failed} failed",
+                    f"Final coverage: {coverage:.1f}%",
+                ],
+            )
         if result.failed > 0:
             failed_cases = [c for c in result.test_cases if c.status.value == "failed"]
             failure_summary = "; ".join(
@@ -1171,6 +1257,15 @@ class Orchestrator:
             f"merge_recommendation={report.merge_recommendation.value} "
             f"blocking_findings={len(report.blocking_findings)}"
         )
+        self._post_activity_comment(
+            work_item_id, "Audit Agent", "Complete",
+            [
+                f"Composite score: {report.composite_score}/10.0",
+                f"Recommendation: {report.merge_recommendation.value.upper()}",
+                f"Blocking findings: {len(report.blocking_findings)}",
+                f"Test coverage score: {cats.test_coverage.score}/{cats.test_coverage.max_score}",
+            ],
+        )
         return True
 
     def _run_supervisor(self, run: PipelineRun, work_item: dict[str, Any]) -> bool:
@@ -1200,6 +1295,13 @@ class Orchestrator:
             )
         except RuntimeError as exc:
             print(f"{LOG_PREFIX} phase=supervisor recommendation=reject — {exc}")
+            self._post_activity_comment(
+                work_item_id, "Supervisor Agent", "Rejected",
+                [
+                    f"Reason: {exc}",
+                    f"Audit score: {run.audit_report.composite_score}/10.0",
+                ],
+            )
             self._post_ado_comment(
                 work_item_id,
                 f"[AI Pipeline] <strong>Pipeline Did Not Merge</strong><br><br>"
@@ -1211,6 +1313,16 @@ class Orchestrator:
 
         run.github_pr_url = decision.pr_url
 
+        sv_status = "Auto-Merged" if decision.merged else "Human Review Required"
+        self._post_activity_comment(
+            work_item_id, "Supervisor Agent", sv_status,
+            [
+                f"PR URL: {decision.pr_url}",
+                f"Merged: {'Yes' if decision.merged else 'No'}",
+                f"Decision: {decision.decision}",
+                f"Audit score: {run.audit_report.composite_score}/10.0",
+            ],
+        )
         merged_label = "Yes" if decision.merged else "No"
         self._post_ado_comment(
             work_item_id,
