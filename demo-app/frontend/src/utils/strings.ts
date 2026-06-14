@@ -51,6 +51,7 @@ export const LABEL_CHECK_TICK_ICON_ARIA = 'check tick icon';
 export const LABEL_COMPLETED_TASKS_HEADING = 'Completed Tasks';
 export const LABEL_NO_COMPLETED_TASKS = 'No completed tasks yet';
 export const LABEL_NO_COMPLETED_TASKS_PRIORITY = 'No tasks in this priority yet';
+export const LABEL_NO_COMPLETED_TASKS_SEARCH = 'No completed tasks match your search';
 
 export const LABEL_PRIORITY = 'Priority';
 export const LABEL_PRIORITY_LOW = 'Low';
