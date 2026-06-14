@@ -34,9 +34,9 @@ const MOCK_COMPLETED_TASKS: Task[] = [
 
 const DEFAULT_PROPS = {
   completedTasks: MOCK_COMPLETED_TASKS,
-  onComplete: jest.fn(),
+  onComplete: vi.fn(),
   selectedPriority: null,
-  onPriorityChange: jest.fn(),
+  onPriorityChange: vi.fn(),
 };
 
 describe('CompletedTasksSection search bar', () => {
