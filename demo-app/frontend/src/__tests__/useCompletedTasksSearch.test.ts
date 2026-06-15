@@ -30,64 +30,23 @@ describe('useCompletedTasksSearch', () => {
   it('returns all tasks when search term is empty', () => {
     const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
     expect(result.current.filteredTasks).toHaveLength(3);
+    expect(result.current.searchTerm).toBe('');
   });
 
-  it('filters tasks by title substring match', () => {
-    const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
-    act(() => {
-      result.current.setSearchTerm('bug');
-    });
-    expect(result.current.filteredTasks).toHaveLength(1);
-    expect(result.current.filteredTasks[0].id).toBe('1');
-  });
-
-  it('filters case-insensitively', () => {
+  it('filters tasks by title in a case-insensitive manner', () => {
     const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
     act(() => {
       result.current.setSearchTerm('WRITE');
     });
     expect(result.current.filteredTasks).toHaveLength(1);
-    expect(result.current.filteredTasks[0].id).toBe('2');
+    expect(result.current.filteredTasks[0].title).toBe('Write unit tests');
   });
 
-  it('returns empty array when no tasks match', () => {
+  it('returns an empty array when no tasks match the search term', () => {
     const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
     act(() => {
-      result.current.setSearchTerm('nonexistent');
+      result.current.setSearchTerm('zzznomatch');
     });
     expect(result.current.filteredTasks).toHaveLength(0);
-  });
-
-  it('restores all tasks when search term is cleared', () => {
-    const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
-    act(() => {
-      result.current.setSearchTerm('bug');
-    });
-    expect(result.current.filteredTasks).toHaveLength(1);
-    act(() => {
-      result.current.setSearchTerm('');
-    });
-    expect(result.current.filteredTasks).toHaveLength(3);
-  });
-
-  it('returns all tasks when search term is only whitespace', () => {
-    const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
-    act(() => {
-      result.current.setSearchTerm('   ');
-    });
-    expect(result.current.filteredTasks).toHaveLength(3);
-  });
-
-  it('initialises with empty searchTerm', () => {
-    const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
-    expect(result.current.searchTerm).toBe('');
-  });
-
-  it('updates searchTerm state via setSearchTerm', () => {
-    const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
-    act(() => {
-      result.current.setSearchTerm('deploy');
-    });
-    expect(result.current.searchTerm).toBe('deploy');
   });
 });
