@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import type { Task, Priority } from '../types';
+import type { Task } from '../types';
 
 export interface UseCompletedTasksSearchResult {
   searchTerm: string;
@@ -7,28 +7,16 @@ export interface UseCompletedTasksSearchResult {
   filteredTasks: Task[];
 }
 
-export function useCompletedTasksSearch(
-  tasks: Task[],
-  selectedPriority: Priority | null = null,
-): UseCompletedTasksSearchResult {
+export function useCompletedTasksSearch(tasks: Task[]): UseCompletedTasksSearchResult {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredTasks = useMemo(() => {
-    let result = tasks;
-
-    if (selectedPriority !== null) {
-      result = result.filter((task) => task.priority === selectedPriority);
+    if (searchTerm.trim() === '') {
+      return tasks;
     }
-
-    if (searchTerm.trim() !== '') {
-      const lowerSearch = searchTerm.toLowerCase();
-      result = result.filter((task) =>
-        task.title.toLowerCase().includes(lowerSearch),
-      );
-    }
-
-    return result;
-  }, [tasks, selectedPriority, searchTerm]);
+    const lowerSearch = searchTerm.toLowerCase();
+    return tasks.filter((task) => task.title.toLowerCase().includes(lowerSearch));
+  }, [tasks, searchTerm]);
 
   return { searchTerm, setSearchTerm, filteredTasks };
 }
