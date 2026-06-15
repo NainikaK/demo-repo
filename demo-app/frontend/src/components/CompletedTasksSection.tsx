@@ -29,18 +29,24 @@ export function CompletedTasksSection({
   onPriorityChange,
 }: CompletedTasksSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const { searchTerm, setSearchTerm, filteredTasks } = useCompletedTasksSearch(completedTasks);
+  const { searchTerm, setSearchTerm, filteredTasks } = useCompletedTasksSearch(
+    completedTasks,
+    selectedPriority,
+  );
 
   const isPriorityEmpty = completedTasks.length === 0;
   const showPriorityEmpty = isPriorityEmpty && selectedPriority !== null;
-  const showSearchEmpty = !isPriorityEmpty && filteredTasks.length === 0 && searchTerm.trim() !== '';
+  const showSearchEmpty =
+    !isPriorityEmpty && filteredTasks.length === 0 && searchTerm.trim() !== '';
   const isEmpty = filteredTasks.length === 0;
 
   const handleToggle = () => {
     setIsExpanded((prev) => !prev);
   };
 
-  const chevronAriaLabel = isExpanded ? LABEL_CHEVRON_COLLAPSE_ARIA : LABEL_CHEVRON_EXPAND_ARIA;
+  const chevronAriaLabel = isExpanded
+    ? LABEL_CHEVRON_COLLAPSE_ARIA
+    : LABEL_CHEVRON_EXPAND_ARIA;
 
   return (
     <section>
@@ -53,10 +59,7 @@ export function CompletedTasksSection({
           aria-expanded={isExpanded}
           className="flex items-center text-gray-800 dark:text-gray-200 focus:outline-none"
         >
-          <ChevronIcon
-            isExpanded={isExpanded}
-            className="w-[1em] h-[1em]"
-          />
+          <ChevronIcon isExpanded={isExpanded} className="w-[1em] h-[1em]" />
         </button>
       </h2>
       {isExpanded && (
@@ -75,7 +78,9 @@ export function CompletedTasksSection({
           />
           {isPriorityEmpty ? (
             <p className="text-gray-500 dark:text-gray-400">
-              {showPriorityEmpty ? LABEL_NO_COMPLETED_TASKS_PRIORITY : LABEL_NO_COMPLETED_TASKS}
+              {showPriorityEmpty
+                ? LABEL_NO_COMPLETED_TASKS_PRIORITY
+                : LABEL_NO_COMPLETED_TASKS}
             </p>
           ) : showSearchEmpty ? (
             <p className="text-gray-500 dark:text-gray-400">
