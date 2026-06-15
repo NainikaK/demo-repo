@@ -29,9 +29,9 @@ const completedTasks: Task[] = [
 
 const defaultProps = {
   completedTasks,
-  onComplete: jest.fn(),
+  onComplete: vi.fn(),
   selectedPriority: null,
-  onPriorityChange: jest.fn(),
+  onPriorityChange: vi.fn(),
 };
 
 describe('CompletedTasksSection — search bar', () => {
