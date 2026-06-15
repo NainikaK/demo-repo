@@ -5,6 +5,7 @@ import {
   LABEL_COMPLETED_SEARCH_ARIA,
   LABEL_NO_COMPLETED_TASKS_SEARCH,
 } from '../utils/strings';
+import { vi } from 'vitest';
 
 const MOCK_COMPLETED_TASKS: Task[] = [
   {
@@ -32,9 +33,9 @@ const MOCK_COMPLETED_TASKS: Task[] = [
 
 const DEFAULT_PROPS = {
   completedTasks: MOCK_COMPLETED_TASKS,
-  onComplete: jest.fn(),
-  selectedPriority: null,
-  onPriorityChange: jest.fn(),
+  onComplete: vi.fn(),
+  selectedPriority: null as null,
+  onPriorityChange: vi.fn(),
 };
 
 describe('CompletedTasksSection search', () => {

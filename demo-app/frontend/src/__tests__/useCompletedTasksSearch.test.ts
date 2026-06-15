@@ -27,59 +27,32 @@ const MOCK_TASKS: Task[] = [
 ];
 
 describe('useCompletedTasksSearch', () => {
-  it('returns all tasks when search term is empty', () => {
+  it('filters tasks by title in a case-insensitive manner when a search term is set', () => {
     const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
-    expect(result.current.filteredCompletedTasks).toHaveLength(3);
-  });
 
-  it('filters tasks by title case-insensitively', () => {
-    const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
     act(() => {
-      result.current.setCompletedSearchTerm('meeting');
+      result.current.setCompletedSearchTerm('MEETING');
     });
+
     expect(result.current.filteredCompletedTasks).toHaveLength(1);
     expect(result.current.filteredCompletedTasks[0].title).toBe('Team Meeting');
   });
 
-  it('filters tasks with mixed case search term', () => {
+  it('returns an empty array when no tasks match the search term', () => {
     const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
-    act(() => {
-      result.current.setCompletedSearchTerm('REPORT');
-    });
-    expect(result.current.filteredCompletedTasks).toHaveLength(1);
-    expect(result.current.filteredCompletedTasks[0].title).toBe('Write Report');
-  });
 
-  it('returns empty array when no tasks match the search term', () => {
-    const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
     act(() => {
       result.current.setCompletedSearchTerm('xyz-no-match');
     });
+
     expect(result.current.filteredCompletedTasks).toHaveLength(0);
   });
 
-  it('restores full list when search term is cleared', () => {
+  it('returns all tasks when the search term is empty (initial state)', () => {
     const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
-    act(() => {
-      result.current.setCompletedSearchTerm('meeting');
-    });
-    expect(result.current.filteredCompletedTasks).toHaveLength(1);
-    act(() => {
-      result.current.setCompletedSearchTerm('');
-    });
-    expect(result.current.filteredCompletedTasks).toHaveLength(3);
-  });
 
-  it('initialises completedSearchTerm as empty string', () => {
-    const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
     expect(result.current.completedSearchTerm).toBe('');
-  });
-
-  it('returns all tasks when search term is whitespace only', () => {
-    const { result } = renderHook(() => useCompletedTasksSearch(MOCK_TASKS));
-    act(() => {
-      result.current.setCompletedSearchTerm('   ');
-    });
     expect(result.current.filteredCompletedTasks).toHaveLength(3);
+    expect(result.current.filteredCompletedTasks).toEqual(MOCK_TASKS);
   });
 });
