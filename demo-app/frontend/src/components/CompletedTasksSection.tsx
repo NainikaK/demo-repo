@@ -1,14 +1,18 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { TaskCard } from './TaskCard';
 import { PriorityFilter } from './PriorityFilter';
 import { ChevronIcon } from './ChevronIcon';
+import { useCompletedTasksSearch } from '../hooks/useCompletedTasksSearch';
 import type { Task, Priority } from '../types';
 import {
   LABEL_COMPLETED_TASKS_HEADING,
   LABEL_NO_COMPLETED_TASKS,
   LABEL_NO_COMPLETED_TASKS_PRIORITY,
+  LABEL_NO_COMPLETED_TASKS_SEARCH,
   LABEL_CHEVRON_COLLAPSE_ARIA,
   LABEL_CHEVRON_EXPAND_ARIA,
+  LABEL_COMPLETED_SEARCH_PLACEHOLDER,
+  LABEL_COMPLETED_SEARCH_ARIA,
 } from '../utils/strings';
 
 export interface CompletedTasksSectionProps {
@@ -25,9 +29,12 @@ export function CompletedTasksSection({
   onPriorityChange,
 }: CompletedTasksSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const { searchTerm, setSearchTerm, filteredTasks } = useCompletedTasksSearch(completedTasks);
 
-  const isEmpty = completedTasks.length === 0;
-  const showPriorityEmpty = isEmpty && selectedPriority !== null;
+  const isPriorityEmpty = completedTasks.length === 0;
+  const showPriorityEmpty = isPriorityEmpty && selectedPriority !== null;
+  const showSearchEmpty = !isPriorityEmpty && filteredTasks.length === 0 && searchTerm.trim() !== '';
+  const isEmpty = filteredTasks.length === 0;
 
   const handleToggle = () => {
     setIsExpanded((prev) => !prev);
@@ -58,13 +65,29 @@ export function CompletedTasksSection({
             selectedPriority={selectedPriority}
             onChange={onPriorityChange}
           />
-          {isEmpty ? (
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder={LABEL_COMPLETED_SEARCH_PLACEHOLDER}
+            aria-label={LABEL_COMPLETED_SEARCH_ARIA}
+            className="w-full mb-4 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {isPriorityEmpty ? (
             <p className="text-gray-500 dark:text-gray-400">
               {showPriorityEmpty ? LABEL_NO_COMPLETED_TASKS_PRIORITY : LABEL_NO_COMPLETED_TASKS}
             </p>
+          ) : showSearchEmpty ? (
+            <p className="text-gray-500 dark:text-gray-400">
+              {LABEL_NO_COMPLETED_TASKS_SEARCH}
+            </p>
+          ) : isEmpty ? (
+            <p className="text-gray-500 dark:text-gray-400">
+              {LABEL_NO_COMPLETED_TASKS}
+            </p>
           ) : (
             <ul className="flex flex-col gap-3 max-h-[200px] overflow-y-auto">
-              {completedTasks.map((task) => (
+              {filteredTasks.map((task) => (
                 <li key={task.id}>
                   <TaskCard task={task} onComplete={onComplete} />
                 </li>
